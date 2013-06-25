@@ -260,6 +260,25 @@ class TimestampTests(TestCase):
         self.assertTrue(parsed.tzinfo is not None)
         self.assertEqual(parsed.replace(tzinfo=None), datetime.min)
 
+    def test_from_timestamp_truncates(self):
+        """
+        ``from_timestamp`` truncates seconds after parsing when truncate_seconds=True is passed
+        """
+        dt_str = '2012-10-23T03:24:53.356'
+        dt_fromtimestamp = timestamp.from_timestamp(dt_str, truncate_seconds=True).replace(tzinfo=None)
+        expected_dt = datetime(2012, 10, 23, 3, 24)
+        self.assertEqual(dt_fromtimestamp, expected_dt)
+
+    def test_from_timestamp_with_tz_truncates(self):
+        """
+        ``from_timestamp`` truncates seconds after parsing iso8601 datetime str with tz when
+        truncate_seconds=True is passed
+        """
+        dt_str = '2012-10-23T03:24:53.356+05:00'
+        dt_fromtimestamp = timestamp.from_timestamp(dt_str, truncate_seconds=True)
+        expected_dt = datetime(2012, 10, 23, 3, 24, tzinfo=dt_fromtimestamp.tzinfo)
+        self.assertEqual(dt_fromtimestamp, expected_dt)
+
 
 class ConfigTest(TestCase):
     """

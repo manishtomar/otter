@@ -11,11 +11,11 @@ from otter.models.interface import (
     NoSuchWebhookError, UnrecognizedCapabilityError, IScalingScheduleCollection)
 from otter.util.cqlbatch import Batch
 from otter.util.hashkey import generate_capability, generate_key_str
+from otter.util.timestamp import from_timestamp
 
 from silverberg.client import ConsistencyLevel
 
 import json
-import iso8601
 from datetime import datetime
 
 
@@ -162,7 +162,8 @@ def _build_policies(policies, policies_table, event_table, queries, data, outpol
                     queries.append(_cql_insert_event.format(cf=event_table,
                                                             name=':' + polname))
                     if 'at' in policy["args"]:
-                        data[polname + "Trigger"] = iso8601.parse_date(policy["args"]["at"])
+                        dt = from_timestamp(policy["args"]["at"], truncate_seconds=True)
+                        data[polname + "Trigger"] = dt
                     elif 'cron' in policy["args"]:
                         # TODO
                         #recurrence = Recurrence(cron=policy["args"]["cron"])
