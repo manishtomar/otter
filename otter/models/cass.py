@@ -153,8 +153,6 @@ def _build_policies(policies, policies_table, event_table, queries, data, outpol
             polId = generate_key_str('policy')
             queries.append(_cql_insert_policy.format(cf=policies_table,
                                                      name=':' + polname))
-
-            data[polname] = serialize_json_data(policy, 1)
             data[polname + "Id"] = polId
 
             if "type" in policy:
@@ -164,6 +162,8 @@ def _build_policies(policies, policies_table, event_table, queries, data, outpol
                     if 'at' in policy["args"]:
                         dt = from_timestamp(policy["args"]["at"], truncate_seconds=True)
                         data[polname + "Trigger"] = dt
+                        # storing the truncated date back in dict to reflect that in db
+                        policy["args"]["at"] = dt.isoformat()
                     elif 'cron' in policy["args"]:
                         # TODO
                         #recurrence = Recurrence(cron=policy["args"]["cron"])
@@ -171,6 +171,7 @@ def _build_policies(policies, policies_table, event_table, queries, data, outpol
                         # This is done to pass unitgration/test_rest_cass_model tests
                         data[polname + "Trigger"] = datetime(2037, 12, 31)
 
+            data[polname] = serialize_json_data(policy, 1)
             outpolicies[polId] = policy
 
 

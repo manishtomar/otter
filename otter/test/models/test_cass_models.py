@@ -5,7 +5,6 @@ from collections import namedtuple
 import json
 import mock
 from datetime import datetime
-import iso8601
 
 from twisted.trial.unittest import TestCase
 
@@ -27,6 +26,7 @@ from otter.test.models.test_interface import (
     IScalingScheduleCollectionProviderMixin)
 
 from otter.test.utils import patch
+from otter.util import timestamp
 
 from twisted.internet import defer
 from silverberg.client import ConsistencyLevel
@@ -649,7 +649,8 @@ class CassScalingGroupTestCase(IScalingGroupProviderMixin, TestCase):
     def test_add_scaling_policy_at(self):
         """
         Test that you can add a scaling policy with 'at' schedule and what is returned is
-        dictionary of the ids to the scaling policies
+        dictionary of the ids to the scaling policies. Also, test that seconds are truncated
+        from 'at' while storing in cass
         """
         cass_response = [{'data': '{}'}]
         self.returns = [cass_response, None]
@@ -664,11 +665,11 @@ class CassScalingGroupTestCase(IScalingGroupProviderMixin, TestCase):
                        'INSERT INTO scaling_schedule("tenantId", "groupId", "policyId", trigger) '
                        'VALUES (:tenantId, :groupId, :policy0, :policy0Trigger) '
                        'APPLY BATCH;')
-        expectedData = {"policy0": ('{"name": "scale up by 10", "args": {"at": "2012-10-20T03:23:45"}, '
+        expectedData = {"policy0": ('{"name": "scale up by 10", "args": {"at": "2012-10-20T03:23:00+00:00"}, '
                                     '"cooldown": 5, "_ver": 1, "type": "schedule", "change": 10}'),
                         "groupId": '12345678g',
                         "policy0Id": '12345678',
-                        "policy0Trigger": iso8601.parse_date(expected_at),
+                        "policy0Trigger": timestamp.from_timestamp(expected_at, truncate_seconds=True),
                         "tenantId": '11111'}
         self.connection.execute.assert_called_with(
             expectedCql, expectedData, ConsistencyLevel.TWO)
