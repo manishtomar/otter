@@ -1,0 +1,28 @@
+{
+  "environment": "production",
+  "region": "ORD",
+  "url_root": "http://127.0.0.1:9000",
+  "mock": false,
+  "port": "tcp:9000",
+  "keyspace": "otter",
+  "identity": {
+    "username": "REPLACE_WITH_REAL_USERNAME",
+    "password": "REPLACE_WITH_REAL_PASSWORD",
+    "url": "https://identity.api.rackspacecloud.com/v2.0",
+    "admin_url": "https://identity-internal.api.rackspacecloud.com/v2.0"
+  },
+  "graylog": {
+    "host": "127.0.0.1",
+    "port": 12201
+  },
+  "cassandra": {
+    "seed_hosts": [
+      "tcp:127.0.0.1:9160"
+    ],
+    "keyspace": "otter"
+  },
+ "scheduler": {
+	"interval": "2",
+	"batchsize": "10"
+	}
+}

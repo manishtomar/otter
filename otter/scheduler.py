@@ -45,9 +45,17 @@ class SchedulerService(TimerService):
         """
         from otter.models.cass import LOCK_TABLE_NAME
         self.lock = BasicLock(slv_client, LOCK_TABLE_NAME, 'schedule', max_retry=0)
-        TimerService.__init__(self, interval, self.check_for_events, batchsize)
+        #TimerService.__init__(self, interval, self.check_for_events, batchsize)
+        TimerService.__init__(self, interval, self.test)
         self.clock = clock
         self.log = otter_log.bind(system='otter.scheduler')
+
+    def test(self):
+        print 'inside', datetime.now()
+        d = defer.Deferred()
+        from twisted.internet import reactor
+        reactor.callLater(5, d.callback, 'some')
+        return d
 
     def check_for_events(self, batchsize):
         """
