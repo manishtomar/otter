@@ -93,7 +93,7 @@ class ExecuteUpdatedPoliciesTest(AutoscaleFixture):
             group_id=self.group.id,
             expected_servers=self.group.groupConfiguration.minEntities)
 
-    @tags(speed='quick')
+    @tags(speed='one-time')
     def test_system_update_policy_desired_capacity_over_25(self):
         """
         Update the desired capacity to scale up by setting desired capacity > 25
