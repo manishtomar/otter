@@ -20,7 +20,7 @@ from silverberg.cassandra.ttypes import ConsistencyLevel
 from silverberg.cluster import RoundRobinCassandraCluster
 #from silverberg.lock import BasicLock, with_lock
 
-from otter.txkazoo import TxKazooClient
+from txkazoo import TxKazooClient
 
 from cql.connection import connect
 
@@ -104,6 +104,7 @@ def with_lock(reactor, lock, func, *args, **kwargs):
     """ Context manager for the lock """
 
     d = defer.maybeDeferred(lock.acquire)
+    d.addCallback(print_with_time, reactor, reactor.seconds(), 'Lock acquisition')
 
     def release_lock(result):
         d = defer.maybeDeferred(lock.release)
@@ -112,11 +113,10 @@ def with_lock(reactor, lock, func, *args, **kwargs):
     def lock_acquired(_):
         d = defer.maybeDeferred(func, *args, **kwargs).addBoth(release_lock)
         d.addCallback(
-            print_with_time, reactor, reactor.seconds(), 'Lock release', False)
+            print_with_time, reactor, reactor.seconds(), 'Lock release')
         return d
 
     d.addCallback(lock_acquired)
-    d.addCallback(print_with_time, reactor, reactor.seconds(), 'Lock acquisition', False)
     return d
 
 
@@ -401,7 +401,7 @@ def test_file_lock(reactor, client, args):
     return task.coiterate((_get_lock(i) for i in range(0, times)))
 
 
-def print_with_time(r, reactor, start, msg, result=True, *args):
+def print_with_time(r, reactor, start, msg, result=False, *args):
     seconds = reactor.seconds() - start
     if result:
         print(msg + ' with result {} completed in {}'.format(r, seconds), *args)
@@ -419,7 +419,7 @@ def fetch_and_delete(reactor, client, now, size=100):
                            {"size": size, "now": now},
                            ConsistencyLevel.QUORUM)
         return d.addCallback(delete_events).addCallback(
-            print_with_time, reactor, reactor.seconds(), 'fetch/del', result=False)
+            print_with_time, reactor, reactor.seconds(), 'fetch/del')
 
     def delete_events(events):
         if not events:
@@ -479,13 +479,15 @@ def scheduler(reactor, client, args):
 
     def setup_lock():
         global kz_client
-        kz_client = TxKazooClient(hosts='127.0.0.1:2181,127.0.0.1:2182,127.0.0.1:2183')
+        #kz_client = TxKazooClient(hosts='127.0.0.1:2181,127.0.0.1:2182,127.0.0.1:2183')
+        kz_client = TxKazooClient(hosts='zoo0:2181,zoo1:2181,zoo2:2181')
         return kz_client.start()
 
     d = setup_lock()
-    d.addCallback(lambda _: do_check())
+    d.addCallback(lambda _: _do_check())
     d.addCallback(
         print_with_time, reactor, reactor.seconds(), 'scheduler total', False, total)
+    d.addCallback(lambda _: kz_client.stop())
     return d
 
 
@@ -580,7 +582,7 @@ def nothing(reactor, client, args):
 
 
 def main(reactor, *args):
-    log.startLogging(sys.stdout)
+    #log.startLogging(sys.stdout)
     clients = os.getenv('CASS_CLIENTS').split(',')
     print('cass clients', clients)
     hosts = [clientFromString(reactor, client) for client in clients]
@@ -590,7 +592,7 @@ def main(reactor, *args):
     if mod == 'schema':
         return schema(clients)
     d = getattr(sys.modules[__name__], mod)(reactor, client, args[1:])
-    d.addBoth(print_with_time, reactor, reactor.seconds(), mod)
+    d.addBoth(print_with_time, reactor, reactor.seconds(), True, mod)
     d.addBoth(lambda _: client.disconnect())
     return d
 
