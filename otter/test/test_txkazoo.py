@@ -14,6 +14,7 @@ from otter.test.utils import patch
 
 from kazoo.client import KazooClient
 
+
 class TxKazooClientTests(TestCase):
     """
     Tests for `TxKazooClient`
@@ -47,18 +48,43 @@ class TxKazooClientTests(TestCase):
 
 
 @defer.inlineCallbacks
+def partitioning(reactor, client):
+    part = client.SetPartitioner('/manitest_partition', set(range(1,10)))
+    while True:
+        if part.failed:
+            raise Exception('failed')
+        if part.release:
+            print('part changed. releasing')
+            yield part.release_set()
+        elif part.acquired:
+            print('got part', list(part))
+            d = defer.Deferred()
+            reactor.callLater(1, d.callback, None)
+            yield d
+        elif part.allocating:
+            print('allocating')
+            yield part.wait_for_acquire()
+
+
+def zk_listener(state):
+    print('state change', state)
+
+
+@defer.inlineCallbacks
+def state_changes(reactor, client):
+    client.add_listener(zk_listener)
+    while True:
+        print('state', client.state)
+        d = defer.Deferred()
+        reactor.callLater(1, d.callback, None)
+        yield d
+
+
+@defer.inlineCallbacks
 def test_via_cli(reactor, *args):
     client = TxKazooClient(hosts='127.0.0.1:2181,127.0.0.1:2182,127.0.0.1:2183')
     yield client.start()
-    #path_info = yield client.get('/')
-    #yield client.create('/manitest', 'manitest data')
-    #new_path = yield client.get('/manitest')
-    #print(new_path)
-    lock = client.Lock('/manitest_lock')
-    yield lock.acquire()
-    print('acquired lock')
-    yield lock.release()
-    print('released lock')
+    yield partitioning(reactor, client)
     yield client.stop()
 
 if __name__ == '__main__':

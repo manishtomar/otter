@@ -7,6 +7,7 @@ from twisted.internet.threads import deferToThread
 
 from kazoo.client import KazooClient
 
+
 class TxKazooClient(object):
     """
     Twisted wrapper for Kazoo client
@@ -75,15 +76,40 @@ class TxKazooClient(object):
         # Returning twisted Lock directly since init does not do blocking call
         return Lock(self.client.Lock(path, identifier))
 
+    def SetPartitioner(self, path, set, **kwargs):
+        # Returning twisted SetPartitioner directly since init does not do blocking call
+        return SetPartitioner(self.client.SetPartitioner(path, set, **kwargs))
+
 
 class Lock(object):
     """
-    Twistified Kazoo lock recipe class
+    Twisted wrapper for Lock recipe
     """
 
     def __init__(self, lock):
-        self.lock = lock
+        self._lock = lock
 
     def __getattr__(self, name):
-        return lambda *args, **kwargs: deferToThread(getattr(self.lock, name), *args, **kwargs)
+        return lambda *args, **kwargs: deferToThread(getattr(self._lock, name), *args, **kwargs)
+
+
+class SetPartitioner(object):
+    """
+    Twisted wrapper for SetPartitioner
+    """
+
+    # These attributes do not block and hence will be given directly
+    get_attrs = ['state', 'failed', 'release', 'allocating', 'acquired']
+
+    def __init__(self, partitioner):
+        self._partitioner = partitioner
+
+    def __getattr__(self, name):
+        if name in self.get_attrs:
+            return getattr(self._partitioner, name)
+        return lambda *args, **kwargs: deferToThread(getattr(self._partitioner, name), *args, **kwargs)
+
+    def __iter__(self):
+        for elem in self._partitioner:
+            yield elem
 
