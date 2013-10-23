@@ -20,6 +20,8 @@ from silverberg.cassandra.ttypes import ConsistencyLevel
 from silverberg.cluster import RoundRobinCassandraCluster
 #from silverberg.lock import BasicLock, with_lock
 
+from otter.txkazoo import TxKazooClient
+
 from cql.connection import connect
 
 
@@ -98,32 +100,24 @@ class LoggingCQLClient(object):
         self._client.disconnect()
 
 
-class Lock(object):
-    """
-    Base lock for lock implementations
-    """
-    def acquire(self):
-        """ Acquire the lock """
-        pass
+def with_lock(reactor, lock, func, *args, **kwargs):
+    """ Context manager for the lock """
 
-    def release(self):
-        """ release the lock """
-        pass
+    d = defer.maybeDeferred(lock.acquire)
 
-    def with_lock(self, func, *args, **kwargs):
-        """ Context manager for the lock """
+    def release_lock(result):
+        d = defer.maybeDeferred(lock.release)
+        return d.addCallback(lambda _: result)
 
-        d = defer.maybeDeferred(self.acquire)
-
-        def release_lock(result):
-            d = defer.maybeDeferred(self.release)
-            return d.addCallback(lambda _: result)
-
-        def lock_acquired(_):
-            return defer.maybeDeferred(func, *args, **kwargs).addBoth(release_lock)
-
-        d.addCallback(lock_acquired)
+    def lock_acquired(_):
+        d = defer.maybeDeferred(func, *args, **kwargs).addBoth(release_lock)
+        d.addCallback(
+            print_with_time, reactor, reactor.seconds(), 'Lock release', False)
         return d
+
+    d.addCallback(lock_acquired)
+    d.addCallback(print_with_time, reactor, reactor.seconds(), 'Lock acquisition', False)
+    return d
 
 
 class BusyLockError(Exception):
@@ -141,7 +135,7 @@ class NoLockClaimsError(Exception):
                 table=lock_table))
 
 
-class BasicLock(Lock):
+class BasicLock(object):
     """A locking mechanism for Cassandra.
 
     Based on the lock implementation from Netflix's astyanax, the lock recipe
@@ -357,7 +351,7 @@ class BasicLock(Lock):
         return acquire_lock().addErrback(log_lock_acquire_failure)
 
 
-class FileLock(Lock):
+class FileLock(object):
     def __init__(self, fname, max_retry=0, retry_wait=10, clock=None):
         self.fname = fname
         self.max_retry = max_retry
@@ -401,7 +395,7 @@ def test_file_lock(reactor, client, args):
         return d
 
     def _get_lock(i):
-        d = lock.with_lock(_in, i)
+        d = lock.with_lock(reactor, _in, i)
         return d.addCallback(lambda _: waiting_deferred(reactor, 0.2, ''))
 
     return task.coiterate((_get_lock(i) for i in range(0, times)))
@@ -441,18 +435,16 @@ def fetch_and_delete(reactor, client, now, size=100):
         d = Batch(queries, data, ConsistencyLevel.QUORUM).execute(client)
         return d.addCallback(lambda _: events)
 
-    class Log(object):
-        def msg(self, *args, **kwargs):
-            print(*args, **kwargs)
-
-    lock = BasicLock(client, 'locks', 'schedule', max_retry=30,
-                     retry_wait=random.uniform(0.5, 1.5), reactor=reactor,
-                     log=log)
-                     #log=type('Log', ('object',), dict(msg=print))())
+    #lock = BasicLock(client, 'locks', 'schedule', max_retry=30,
+    #                 retry_wait=random.uniform(0.5, 1.5), reactor=reactor,
+    #                 log=log)
     #lock = FileLock('schedule', max_retry=30, retry_wait=random.uniform(0.5, 1.5),
     #                clock=reactor)
-    return lock.with_lock(_fetch_and_delete, now, size)
+    lock = kz_client.Lock('/schedule_lock')
+    return with_lock(reactor, lock, _fetch_and_delete, now, size)
 
+
+kz_client = None
 
 def scheduler(reactor, client, args):
     """
@@ -469,9 +461,7 @@ def scheduler(reactor, client, args):
     def process_events(events, trigger):
         print("processing {} events".format(len(events)))
         total[0] += len(events)
-        d = defer.Deferred()
-        reactor.callLater(random.uniform(0.1, 0.5), d.callback, events)
-        return d
+        return waiting_deferred(reactor, random.uniform(0.1, 0.5), events)
 
     def check_for_more(events):
         if events and len(events) == batchsize:
@@ -487,8 +477,16 @@ def scheduler(reactor, client, args):
         #d.addErrback(print, 'Error')
         return d
 
-    return _do_check().addCallback(
+    def setup_lock():
+        global kz_client
+        kz_client = TxKazooClient(hosts='127.0.0.1:2181,127.0.0.1:2182,127.0.0.1:2183')
+        return kz_client.start()
+
+    d = setup_lock()
+    d.addCallback(lambda _: do_check())
+    d.addCallback(
         print_with_time, reactor, reactor.seconds(), 'scheduler total', False, total)
+    return d
 
 
 def insert(reactor, client, args):
