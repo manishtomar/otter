@@ -50,6 +50,7 @@ class TxKazooClient(object):
             return deferToThread(func, path, **kwargs)
 
         def _watch(event):
+            # Called from kazoo thread. Replaying in reactor
             reactor.callFromThread(watch, event)
 
         return deferToThread(func, path, watch=_watch, **kwargs)
@@ -69,7 +70,7 @@ class TxKazooClient(object):
     def get_children(self, path, watch=None, include_data=False):
         return self._watch_func(self.client.get_children, path, watch, include_data=include_data)
 
-    def get_children_asycn(self, path, watch=None, include_data=False):
+    def get_children_async(self, path, watch=None, include_data=False):
         return self._watch_func(self.client.get_children_async, path, watch, include_data=include_data)
 
     def Lock(self, path, identifier=None):
@@ -120,6 +121,8 @@ class SetPartitioner(object):
 
     def __getattr__(self, name):
         if name in self.get_attrs:
+            # Until paritioner is initialzed, we know state is allocating and hence other
+            # properties will be False
             return False if not self._partitioner else getattr(self._partitioner, name)
         return lambda *args, **kwargs: deferToThread(getattr(self._partitioner, name), *args, **kwargs)
 
