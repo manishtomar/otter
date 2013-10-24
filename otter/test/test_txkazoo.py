@@ -50,20 +50,21 @@ class TxKazooClientTests(TestCase):
 @defer.inlineCallbacks
 def partitioning(reactor, client):
     part = client.SetPartitioner('/manitest_partition', set(range(1,10)))
+    start = reactor.seconds()
     while True:
         if part.failed:
             raise Exception('failed')
         if part.release:
             print('part changed. releasing')
+            start = reactor.seconds()
             yield part.release_set()
         elif part.acquired:
-            print('got part', list(part))
-            d = defer.Deferred()
-            reactor.callLater(1, d.callback, None)
-            yield d
+            print('got part {} in {} seconds'.format(list(part), reactor.seconds() - start))
         elif part.allocating:
             print('allocating')
-            yield part.wait_for_acquire()
+        d = defer.Deferred()
+        reactor.callLater(1, d.callback, None)
+        yield d
 
 
 def zk_listener(state):

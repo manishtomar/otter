@@ -77,8 +77,7 @@ class TxKazooClient(object):
         return Lock(self.client.Lock(path, identifier))
 
     def SetPartitioner(self, path, set, **kwargs):
-        # Returning twisted SetPartitioner directly since init does not do blocking call
-        return SetPartitioner(self.client.SetPartitioner(path, set, **kwargs))
+        return SetPartitioner(self.client, path, set, **kwargs)
 
 
 class Lock(object):
@@ -99,14 +98,29 @@ class SetPartitioner(object):
     """
 
     # These attributes do not block and hence will be given directly
-    get_attrs = ['state', 'failed', 'release', 'allocating', 'acquired']
+    get_attrs = ['failed', 'release', 'acquired']
 
-    def __init__(self, partitioner):
+    def __init__(self, client, path, set, **kwargs):
+        self._partitioner = None
+        d = deferToThread(client.SetPartitioner, path, set, **kwargs)
+        d.addCallback(self._initialized)
+
+    def _initialized(self, partitioner):
         self._partitioner = partitioner
+
+    @property
+    def state(self):
+        # Until paritioner is initialzed, we know that it is allocating
+        return PartitionState.ALLOCATING if not self._partitioner else self._partitioner.state
+
+    @property
+    def allocating(self):
+        # Until paritioner is initialzed, we know that it is allocating
+        return True if not self._partitioner else self._partitioner.allocating
 
     def __getattr__(self, name):
         if name in self.get_attrs:
-            return getattr(self._partitioner, name)
+            return False if not self._partitioner else getattr(self._partitioner, name)
         return lambda *args, **kwargs: deferToThread(getattr(self._partitioner, name), *args, **kwargs)
 
     def __iter__(self):
