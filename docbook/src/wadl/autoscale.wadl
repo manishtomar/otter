@@ -205,7 +205,7 @@
 		     required="true"
 		     type="string"
 		     path="$.launchConfiguration.args.server.personality.[*].path">
-		<wadl:doc xmlns="http://docbook.org/ns/docbook">This parameter specifies the path to the file that contains data that will be injected into the file system of the new cloud server image/ </wadl:doc>
+		<wadl:doc xmlns="http://docbook.org/ns/docbook">This parameter specifies the path to the file that contains data that will be injected into the file system of the new cloud server image.</wadl:doc>
 	      </param>
 	      <param style="plain"
 		     name="contents"
@@ -268,7 +268,12 @@
 		     required="false"
 		     type="object"
 		     path="$.groupConfiguration.metadata">
-	          <wadl:doc xmlns="http://docbook.org/ns/docbook">This optional parameter specifies custom metadata for your group configuration. You can use the metadata parameter for customer automation, but it does not change any functionality in Auto Scale. There currently is no limitation on depth.</wadl:doc>
+	          <wadl:doc xmlns="http://docbook.org/ns/docbook">This
+                        optional parameter specifies custom metadata
+                        for your group configuration. You can use the
+                        metadata parameter for customer automation,
+                        but it does not change any functionality in
+                        Auto Scale. </wadl:doc>
 	      </param>
 	      <param style="plain"
 		     name="scalingPolicies"
@@ -352,7 +357,7 @@
         <response status="201">
             <param name="location" style="header"
                    required="true" type="xsd:anyURI">
-            <doc>This method creates an autoscaling endpoint</doc>
+            <doc>This method creates an autoscaling endpoint.</doc>
             </param>
             <representation mediaType="application/json">
                 <doc xml:lang="en">
