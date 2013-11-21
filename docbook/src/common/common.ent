@@ -21,12 +21,12 @@
               <representation mediaType="application/json"/>
           </response>
           <response status="403" xmlns="http://wadl.dev.java.net/2009/02">
-              <doc title="Forbidden"></doc>
+              <doc title="Forbidden">The method is not allowed.</doc>
               <representation mediaType="application/xml" element="identity:forbidden"/>
               <representation mediaType="application/json"/>
           </response>
           <response status="405" xmlns="http://wadl.dev.java.net/2009/02">
-               <doc title="Bad Method">The method is unavailable</doc>
+               <doc title="Bad Method">The method is unavailable.</doc>
               <representation mediaType="application/xml" element="identity:badMethod"/>
               <representation mediaType="application/json"/>
           </response>
@@ -47,7 +47,7 @@
      <!ENTITY getFaults
            '
         <response status="404" xmlns="http://wadl.dev.java.net/2009/02">
-            <doc title="File not found">Resource not found.</doc>
+            <doc title="File not found">The resource could not be found.</doc>
             <representation mediaType="application/xml" element="identity:itemNotFound"/>
             <representation mediaType="application/json"/>
         </response>

@@ -232,13 +232,6 @@ is external so it's handy for Getting Started to share -->
                 >http://www.rackspace.com/cloud/load-balancing/pricing/</link>.
             </para>
           </listitem>
-          <listitem>
-            <para>For Rackspace Cloud Monitoring, pricing is published
-              at <link
-                xlink:href="http://www.rackspace.com/cloud/monitoring/pricing/"
-                >http://www.rackspace.com/cloud/monitoring/pricing/</link>.
-            </para>
-          </listitem>
         </itemizedlist>
       </para>
         <para>For the Early Access period, there is no Service Level Agreement (SLA) for &PRODNAME;. </para>
@@ -1240,6 +1233,8 @@ config at https://github.com/rackerlabs/autoscaling-chef/blob/master/site-cookbo
         user's cloud feed as an audit log. The audit log contains all
         the events that have occurred within a user's scaling group.
       </para>
+      <para>Auto Scale provides a method that enables users to view
+        the history of a specific API request. </para>
     </section>
       <section xml:id="faults-dle101">
         <title>Faults</title>
