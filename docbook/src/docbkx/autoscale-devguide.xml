@@ -610,6 +610,11 @@ is external so it's handy for Getting Started to share -->
               <td colspan="5"
                   ><code>https://hkg.autoscale.api.rackspacecloud.com/v1.0/</code><parameter>1234</parameter>/ </td>
             </tr>
+            <tr align="left">
+              <td colspan="2">Northern Virginia(IAD)</td>
+              <td colspan="5"
+                ><code>https://iad.autoscale.api.rackspacecloud.com/v1.0/</code><parameter>1234</parameter>/ </td>
+            </tr>
           </tbody>
         </table>
       </para>
@@ -1519,6 +1524,16 @@ Content-Type: application/json
           cooldown phase of 150 seconds and a scaling policy that
           scales the group down by 5.5 percent with a cooldown phase
           of 6 seconds.</para>
+        <para>
+          <note>
+            <para>When creating a scaling policy, you need to specify
+              one of these three parameters:
+                <parameter>change</parameter>,
+                <parameter>changePercent</parameter>, and
+                <parameter>desiredCapacity</parameter>. All 3
+              parameters are mutually exclusive.</para>
+          </note>
+        </para>
         <example><title>Create a Scaling Policy</title><programlisting>
 POST https://autoscale.api.rackspacecloud.com/v1.0/{tenantID}/groups/{groupID}/policies/
                 </programlisting></example>

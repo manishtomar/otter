@@ -372,7 +372,14 @@
 		     required="false"
 		     type="integer"
 		     path="$.scalingPolicies.[*].desiredCapacity">
-		<wadl:doc xmlns="http://docbook.org/ns/docbook">This parameter specifies the desired server capacity of the scaling the group, i.e. how many servers there should be in the scaling group. This value must be an absolute number. For example, if this parameter is set to 10 and the executing policy with this will bring the number of servers to 10. The minimum allowed value is 0. </wadl:doc>
+		<wadl:doc xmlns="http://docbook.org/ns/docbook">This parameter
+                        specifies the desired server capacity of the
+                        scaling the group, i.e. how many servers there
+                        should be in the scaling group. This value
+                        must be an absolute number. For example, if
+                        this parameter is set to 10, executing the
+                        policy will bring the number of servers to 10.
+                        The minimum allowed value is 0. </wadl:doc>
 	      </param>
             </representation>
         </request>
@@ -861,8 +868,10 @@ IMPORTANT: This method has not been implemented in the Auto Scale API yet and wi
                         of servers that will be shut down is 1. If X%
                         of the current number of servers translates to
                         1.2 or 1.5 or 1.7 servers, the actual number
-                        of servers that will be launched is
-                        2.</wadl:doc>
+                        of servers that will be launched is 2. This
+                        parameter is mutually exclusive with the
+                        change and desiredCapacity
+                        parameters.</wadl:doc>
 	      </param>
 	      <param style="plain"
 		     name="cooldown"
@@ -883,14 +892,33 @@ IMPORTANT: This method has not been implemented in the Auto Scale API yet and wi
                     required="false"
                     type="integer"
                     path="$.[*].change">
-                    <wadl:doc xmlns="http://docbook.org/ns/docbook">This parameter specifies the change to make in the number of servers in the scaling group. This parameter must be an integer. If the value is a positive integer, the number of servers will increase. If the value is a negative integer, the number of servers will decrease.</wadl:doc>
+                    <wadl:doc xmlns="http://docbook.org/ns/docbook"
+                        >This parameter specifies the change to make
+                        in the number of servers in the scaling group.
+                        This parameter must be an integer. If the
+                        value is a positive integer, the number of
+                        servers will increase. If the value is a
+                        negative integer, the number of servers will
+                        decrease. This parameter is mutually exclusive
+                        with the changePercent and desiredCapacity
+                        parameters.</wadl:doc>
                 </param>
                 <param style="plain"
                     name="desiredCapacity"
                     required="false"
                     type="integer"
                     path="$.[*].desiredCapacity">
-                    <wadl:doc xmlns="http://docbook.org/ns/docbook">This parameter specifies the desired server capacity of the scaling the group, i.e. how many servers there should be in the scaling group. This value must be an absolute number. For example, if this parameter is set to 10, executing this policy will bring the number of servers to 10. The minimum allowed value of this parameter is 0. </wadl:doc>
+                    <wadl:doc xmlns="http://docbook.org/ns/docbook"
+                        >This parameter specifies the desired server
+                        capacity of the scaling the group, i.e. how
+                        many servers there should be in the scaling
+                        group. This value must be an absolute number.
+                        For example, if this parameter is set to 10,
+                        executing this policy will bring the number of
+                        servers to 10. The minimum allowed value of
+                        this parameter is 0. This parameter is
+                        mutually exclusive with the changePercent and
+                        change parameters.</wadl:doc>
                 </param>
 
             </representation>

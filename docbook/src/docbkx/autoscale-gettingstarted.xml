@@ -239,11 +239,6 @@ canonical.url.base="http://docs.rackspace.com/cas/api/v1.0/autoscale-gettingstar
                 replication, caching, and overall maintenance of
                 &PRODNAME; data across regional boundaries to other
                 &PROD; servers.</para>
-            <important>
-                <para> For the Early Access period, you can use &PROD;
-                    endpoints in ORD and DFW. Endpoints in LON and SYD
-                    will be available soon. </para>
-            </important>
             <para>The following table lists the service access
                 endpoints for &PROD;.</para>
             <?rax-fo keep-with-next?>
@@ -293,6 +288,13 @@ canonical.url.base="http://docs.rackspace.com/cas/api/v1.0/autoscale-gettingstar
                             <td colspan="2">Hong Kong (HKG)</td>
                             <td colspan="5"
                                    ><code>https://hkg.autoscale.api.rackspacecloud.com/v1.0/</code><parameter>1234</parameter>/
+                            </td>
+                        </tr>
+                           <tr align="left">
+                            <td colspan="2">Northern Virginia
+                                (IAD)</td>
+                            <td colspan="5"
+                                ><code>https://iad.autoscale.api.rackspacecloud.com/v1.0/</code><parameter>1234</parameter>/
                             </td>
                         </tr>
                     </tbody>
@@ -1110,8 +1112,8 @@ canonical.url.base="http://docs.rackspace.com/cas/api/v1.0/autoscale-gettingstar
                 </para>
                 <para>To configure a webhook-based policy, you set the
                         <parameter>type</parameter> parameter to
-                    "webhook" and then provide the following
-                    information: </para>
+                    "webhook" and then specify one of the following
+                    parameters: </para>
                 <para>
                     <table rules="all">
                         <caption>Parameters for Webhook-triggered
