@@ -856,8 +856,10 @@ canonical.url.base="http://docs.rackspace.com/cas/api/v1.0/autoscale-gettingstar
                             <td><parameter>loadbalancers</parameter></td>
                             <td>Specifies the configuration
                                 information for the load balancer(s)
-                                used in the cloud server
-                                deployment</td>
+                                used in the cloud server deployment.
+                                Load balancers are optional and are
+                                not requrired for the launch
+                                configuration.</td>
                         </tr>
                     </tbody>
                 </table>

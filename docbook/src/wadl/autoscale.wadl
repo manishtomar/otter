@@ -418,7 +418,7 @@
     </method>
 
     <method id="getGroupManifest" name="GET" rax:roles="observer autoscale:observer">
-        <wadl:doc title="List All Group Details" xmlns="http://docbook.org/ns/docbook">
+        <wadl:doc title="List Group Details" xmlns="http://docbook.org/ns/docbook">
             <para role="shortdesc">
                 This method returns details about the configuration for a specified scaling group.
             </para>
