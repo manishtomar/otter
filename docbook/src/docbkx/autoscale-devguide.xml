@@ -1001,7 +1001,7 @@ config at https://github.com/rackerlabs/autoscaling-chef/blob/master/site-cookbo
            {
                "href":
 "https://dfw.autoscale.api.rackspacecloud.com/v1.0/010101/groups/?limit=100&amp;marker=f82bb000-f451-40c8-9dc3-6919097d2f7e"
-               "rel": "next"
+               "rel": "next",
            }
        ]
    }
