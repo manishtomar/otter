@@ -1213,7 +1213,8 @@ canonical.url.base="http://docs.rackspace.com/cas/api/v1.0/autoscale-gettingstar
                                 <td><parameter>args</parameter></td>
                                 <td>Provide information related to the
                                    time when the policy is supposed to
-                                   be invoked.</td>
+                                   be invoked. This must be set to
+                                   either "cron" or "at". </td>
                             </tr>
                         </tbody>
                     </table>
