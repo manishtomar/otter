@@ -577,3 +577,46 @@ def verified_delete(log,
     d.addCallback(on_success)
     d.addErrback(serv_log.err)
     return d
+
+
+def add_loadbalancer_metadata(service_catalog, auth_token, group_id, lb_id, log):
+    """
+    Add group id to the load balancer metadata
+    """
+    lb_region = config_value('regionOverrides.cloudLoadBalancers') or region
+    cloudLoadBalancers = config_value('cloudLoadBalancers')
+    lb_endpoint = public_endpoint_url(service_catalog,
+                                      cloudLoadBalancers,
+                                      lb_region)
+
+    # Check if metadata is already set
+    path = append_segments(lb_endpoint, 'loadBalancers', str(lb_id), 'metadata')
+    d = treq.get(path, headers=headers(auth_token))
+    d.addCallback(check_success, [200])
+    d.addCallback(treq.json_content)
+
+    def is_group_metadata(metadata):
+        for meta in metadata['metadata']:
+            if meta['key'] == 'rax:auto_scaling_group_id':
+                if meta['value'] == group_id:
+                    return True
+                else:
+                    raise ValueError('Group {} already in metadata'.format(group_id))
+         return False
+
+    d.addCallback(is_group_metadata)
+
+    def add_metadata(exists):
+        if exists:
+            return
+        d = treq.post(path, headers=headers(auth_token),
+                      data=json.dumps({'metadata': [{'key': 'rax:auto_scaling_group_id',
+                                                     'value': group_id}]}))
+        d.addCallback(check_success, [200])
+        # TODO: Until https://twistedmatrix.com/trac/ticket/6751 is fixed
+        d.addCallback(treq.content)
+        return d
+
+    d.addCallback(add_metadata)
+    return d
+

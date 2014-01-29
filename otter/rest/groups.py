@@ -331,6 +331,20 @@ class OtterGroups(object):
 
         deferred.addCallback(_do_obey_config_change)
 
+        def _add_lb_metadata(result, data):
+            lbs = data['launchConfiguration']['args']['loadBalancers']
+            d = gatherResults(
+                [supervisor.add_loadbalancer_metadata(self.tenant_id,
+                                                      result['id'],
+                                                      lb['loadBalancerId'],
+                                                      self.log)
+                 for lb in lbs],
+                consumeErrors=True)
+            d.addErrback(self.log.err, 'Error adding LB metadata')
+            return d.addCallback(lambda _: result)
+
+        deferred.addCallback(_add_lb_metadata, data)
+
         def _add_to_bobby(result, client):
             d = client.create_group(self.tenant_id, result['id'])
             return d.addCallback(lambda _: result)

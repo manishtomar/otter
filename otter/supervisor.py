@@ -180,6 +180,29 @@ class SupervisorService(object, Service):
         log.msg('Authenticating for tenant')
         return d.addCallback(when_authenticated)
 
+    def add_loadbalancer_metadata(self, tenant_id, group_id, loadbalancer_id, log):
+        """
+        Add group id to the load balancer metadata
+        """
+        log = log.bind(system='otter.supervisor.add_loadbalancer_metadata',
+                       tenant_id=tenant_id, group_id=group_id,
+                       loadbalancer_id=loadbalancer_id)
+        d = self.auth_function(tenant_id, log=log)
+        log.msg('Authenticating for tenant')
+
+        def add_metadata((auth_token, service_catalog)):
+            log.msg('Adding LB metadata')
+            return launch_server_v1.add_loadbalancer_metadata(
+                service_catalog, auth_token,
+                tenant_id, group_id, loadbalancer_id, log)
+
+        return d.addCallback(add_metadata)
+
+    def remove_loadbalancer_metadata(self, tenant_id, group_id, loadbalancer_id, log):
+        """
+        Remove group id from the load balancer metadata
+        """
+
     def stopService(self):
         """
         Returns a deferred that succeeds when the :class:`DeferredPool` is
