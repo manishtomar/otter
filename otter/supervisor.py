@@ -73,6 +73,7 @@ class SupervisorService(object, Service):
     def __init__(self, auth_function, coiterate):
         self.auth_function = auth_function
         self.coiterate = coiterate
+        self.kz_client = None
         self.deferred_pool = DeferredPool()
 
     def execute_config(self, log, transaction_id, scaling_group, launch_config):
@@ -193,7 +194,7 @@ class SupervisorService(object, Service):
         def add_metadata((auth_token, service_catalog)):
             log.msg('Adding LB metadata')
             return launch_server_v1.add_loadbalancer_metadata(
-                service_catalog, auth_token,
+                service_catalog, auth_token, self.kz_client,
                 tenant_id, group_id, loadbalancer_id, log)
 
         return d.addCallback(add_metadata)
