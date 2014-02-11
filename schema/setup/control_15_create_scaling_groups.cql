@@ -44,6 +44,7 @@ CREATE COLUMNFAMILY scaling_group (
     group_config ascii,
     launch_config ascii,
     desired varint,
+    stack ascii,
     active ascii,
     pending ascii,
     "groupTouched" ascii,

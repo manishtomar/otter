@@ -30,8 +30,9 @@ class GroupState(object):
 
     TODO: ``remove_active``, ``pause`` and ``resume`` ?
     """
-    def __init__(self, tenant_id, group_id, group_name, active, pending, group_touched,
-                 policy_touched, paused, desired=0, now=timestamp.now):
+    def __init__(self, tenant_id, group_id, group_name, active, pending, 
+                 group_touched, policy_touched, paused, desired=0, 
+                 heat_stack=None, now=timestamp.now):
         self.tenant_id = tenant_id
         self.group_id = group_id
         self.group_name = group_name
@@ -45,11 +46,14 @@ class GroupState(object):
         if self.group_touched is None:
             self.group_touched = timestamp.MIN
 
+        self.heat_stack = heat_stack
+
         self.now = now
 
         self._attributes = (
             'tenant_id', 'group_id', 'group_name', 'desired', 'active',
-            'pending', 'group_touched', 'policy_touched', 'paused')
+            'pending', 'group_touched', 'policy_touched', 'paused',
+            'heat_stack')
 
     def __eq__(self, other):
         """
@@ -139,7 +143,7 @@ class GroupState(object):
         """
         return {'current_capacity': len(self.active),
                 'pending_capacity': len(self.pending),
-                'desired_capacity': len(self.active) + len(self.pending)}
+                'desired_capacity': len(self.desired)}
 
 
 class UnrecognizedCapabilityError(Exception):
