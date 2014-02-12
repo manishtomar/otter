@@ -4,34 +4,41 @@ converge.
 """
 
 from otter.util.config import config_value
+from otter.util.hashkey import generate_server_name
+from otter.util.http import append_segments
 from otter.worker.heat_client import HeatClient
 from otter.worker.heat_template import generate_template
-    
+
 
 class HeatWorker(object):
-    def __init__(self, tenant_id, config, launch_config, desired, auth_token, 
-                 log=None):
-        self.config = config
+    def __init__(self, tenant_id, group_id, launch_config, desired,
+                 auth_token, log=None):
+        self.group_id = group_id
+        self.tenant_id = tenant_id
         self.launch_config = launch_config
         self.desired = desired
-        self.client = HeatClient(auth_token, self.tenant_id, log)
-        
+        self.client = HeatClient(auth_token, log)
+
     def create_stack(self):
         """
         Creates a stack with a template generated from the launch config and
         desired capacity.
         """
-        stack_name = 'Otter:{0}'.format(self.config['name'])
+        # stack names must contain only alphanumeric or _-. characters,
+        # and must start with alpha\
+        stack_name = 'Otter-{0}-{1}'.format(self.group_id,
+                                            generate_server_name())
         template = generate_template(self.launch_config, self.desired)
-        d = self.client.create_stack(config_value('heat_url'), stack_name, 
-                                     files={}, parameters={}, timeout=60, 
+        url = append_segments(config_value('heat.url'), self.tenant_id)
+        d = self.client.create_stack(url, stack_name, environment={},
+                                     files={}, parameters={}, timeout=60,
                                      disable_rollback=True, template=template)
-        
+
         def get_link(response_body):
-            links = [link for link in response_body['stack'][links]
+            links = [link for link in response_body['stack']['links']
                      if link['rel'] == 'self']
             return links[0]['href']
-            
+
         return d.addCallback(get_link)
-        
-        
+
+

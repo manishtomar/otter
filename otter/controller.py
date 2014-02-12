@@ -119,24 +119,19 @@ def obey_config_change(log, transaction_id, config, scaling_group, state):
     """
     bound_log = log.bind(scaling_group_id=scaling_group.uuid)
 
-    # XXX:  this is a hack to create an internal zero-change policy so
-    # calculate delta will work
-    delta = calculate_delta(bound_log, state, config, {'change': 0})
+    current = state.desired
+    state.desired = constrain_desired(bound_log, current, config)
 
-    if delta == 0:
-        return defer.succeed(state)
-    elif delta > 0:
-        deferred = scaling_group.view_launch_config()
-        deferred.addCallback(partial(execute_launch_config, bound_log,
-                                     transaction_id, state,
-                                     scaling_group=scaling_group, delta=delta))
-    else:
-        # delta < 0 (scale down)
-        deferred = exec_scale_down(bound_log, transaction_id, state,
-                                   scaling_group, -delta)
+    d = scaling_group.view_launch_config()
 
-    deferred.addCallback(_do_convergence_audit_log, bound_log, delta, state)
-    return deferred
+    # shouldn't have to wait on convergence, but splitting up
+    # convergence and executor is more work because it will have to
+    # modify state again
+    d.addCallback(partial(converge, bound_log, transaction_id,
+                          state, config))
+    d.addErrback(bound_log.err)
+    d.addBoth(lambda _: state)
+    return d
 
 
 def maybe_execute_scaling_policy(
@@ -191,17 +186,20 @@ def maybe_execute_scaling_policy(
         if check_cooldowns(bound_log, state, config, policy, policy_id):
             current = state.desired
             desired = calculate_desired(bound_log, current, policy)
-            state.desired = constrain_desired(desired, config)
+            state.desired = constrain_desired(bound_log, desired, config)
 
             execute_bound_log = bound_log.bind(prev_desired=current,
                                                curr_desired=state.desired)
 
             state.mark_executed(policy_id)
 
-            # don't wait on convergence
-            converge(execute_bound_log, transaction_id, state, )
-
-            return state # propagate the fully updated state back
+            # shouldn't have to wait on convergence, but splitting up
+            # convergence and executor is more work because it will have to
+            # modify state again
+            d = converge(execute_bound_log, transaction_id, state, config,
+                         launch)
+            d.addBoth(lambda _: state)
+            return d
 
         raise CannotExecutePolicyError(scaling_group.tenant_id,
                                        scaling_group.uuid, policy_id,
@@ -210,25 +208,37 @@ def maybe_execute_scaling_policy(
     return deferred.addCallback(_do_maybe_execute)
 
 
-def converge(log, state, config, launch_config, auth_token):
+_authenticate = None
+
+def set_authenticate(authenticate):
+    global _authenticate
+    _authenticate = authenticate
+
+
+def converge(log, transaction_id, state, config, launch_config):
     """
     Update/create stack
     """
-    worker = HeatWorker(state.tenant_id, config, launch_config, 
-                        state.desired, auth_token)
-    if state.heat_stack is not None:
-        # TODO: if update is currently happening, raise UpdateInProgressError,
-        # and have controller queue up another converge after it's over, if
-        # another queued converge doesn't exist yet. (1-length queue)
-        d = worker.update_stack(state.heat_stack, template)
-    else:
-        d = worker.create_stack()
-        
-        def set_stack(link):
-            state.heat_stack = link
-            
-        d.addCallback(set_stack)
-    return d
+    def _converge((auth_token, service_catalog)):
+        worker = HeatWorker(state.tenant_id, state.group_id, launch_config,
+                            state.desired, auth_token, log)
+        if state.heat_stack is not None:
+            # TODO: if update is currently happening, raise
+            # UpdateInProgressError, and have controller queue up another
+            # converge after it's over, if another queued converge doesn't
+            # exist yet. (1-length queue)
+            d = worker.update_stack(state.heat_stack)
+        else:
+            d = worker.create_stack()
+
+            def set_stack(link):
+                state.heat_stack = link
+
+            d.addCallback(set_stack)
+
+        return d
+
+    return _authenticate(state.tenant_id, log).addCallback(_converge)
 
 
 def check_cooldowns(log, state, config, policy, policy_id):
@@ -310,6 +320,6 @@ def constrain_desired(log, desired, config):
     log.msg("constraining new desired capacity",
             unconstrained_desired_capacity=desired,
             constrained_desired_capacity=constrained_desired,
-            max_entities=max_entities, min_entities=config['minEntities'],
+            max_entities=max_entities, min_entities=config['minEntities'])
 
     return constrained_desired

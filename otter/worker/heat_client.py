@@ -21,11 +21,9 @@ class MutuallyExclusiveArgumentsError(Exception):
 
 
 class HeatClient(object):
-    def __init__(self, auth_token, tenant_id, log):
-        self.heat_url = heat_url
-        self.tenant_id = tenant_id
+    def __init__(self, auth_token, log):
         self.auth_token = auth_token
-        self.log = log.bind(tenant_id=tenant_id, heat_url=heat_url, heatclient=True)
+        self.log = log.bind(heatclient=True)
 
     def create_stack(self, heat_url, stack_name, environment, files,
                      parameters, timeout, disable_rollback,
@@ -47,14 +45,13 @@ class HeatClient(object):
             append_segments(heat_url, 'stacks'),
             data=json.dumps(payload),
             headers=headers(self.auth_token), log=log)
-        result = result.addCallback(check_success, [200, 201])
+        result.addCallback(check_success, [200, 201])
         return result.addCallback(treq.json_content)
 
-    def update_stack(self, stack_name, environment, files, parameters, timeout,
-                     template=None, template_url=None):
+    def update_stack(self, stack_url, environment, files,
+                     parameters, timeout, template=None, template_url=None):
         """Update a stack!"""
         payload = {
-            "stack_name": stack_name,
             "parameters": parameters,
             "timeout_mins": timeout
         }
@@ -64,32 +61,22 @@ class HeatClient(object):
             payload['template_url'] = template_url
         else:
             raise MutuallyExclusiveArgumentsError('template', 'template_url')
-        log = self.log.bind(event='update-stack', stack_name=stack_name)
-        # v1/{tenant_id}/stacks/{stack_name}/{stack_id}
-        treq.post(self._url('stacks', stack_name),
-                      data=json.dumps(payload),
-                      headers=headers(self.auth_token),
-                      log=log)
-        return d
+        log = self.log.bind(event='update-stack')
+        result = treq.put(stack_url,
+                  data=json.dumps(payload),
+                  headers=headers(self.auth_token),
+                  log=log)
+        result.addCallback(check_success, [200, 201])
+        result.addCallback(treq.json_content)
+        return result
 
-    def get_stack_id(self, stack_name):
-        """
-        Get the stack ID from the stack name.
-
-        Usually this isn't necessary.
-        """
-        def _got_stack_id_result(response):
-            assert response.code == 302
-            return response.headers['Location']
-
-        result = treq.get(self._url('stacks', stack_name),
-                          headers=headers(self.auth_token),
-                          allow_redirects=False)
-        return result.addCallback(_got_stack_id_result)
-
-    def get_stack(self, stack_name):
+    def get_stack(self, stack_url):
         """Get the metadata about a stack."""
-
+        result = treq.get(stack_url, headers=headers(self.auth_token),
+                          log=self.log)
+        result.addCallback(check_success, [200])
+        result.addCallback(treq.json_content)
+        return result
 
     def get_resources(self, stack_name):
         """
@@ -104,15 +91,27 @@ def main(reactor, *args):
     import os, yaml
     from otter.log import log
     template = yaml.safe_load(open(args[1]))
-    client = HeatClient(
-        os.environ['OS_AUTH_TOKEN'],
-        'https://dfw.orchestration.api.rackspacecloud.com/',
-        os.environ['OS_TENANT_ID'],
-        log)
+    tenant = os.environ['OS_TENANT_ID']
+    client = HeatClient(os.environ['OS_AUTH_TOKEN'], log)
 
-    result = client.create_stack(
-        'my-stack-name', None, None, {}, 60, False, template=template)
-    return result.addCallback(print)
+    heat_root = 'https://dfw.orchestration.api.rackspacecloud.com/v1/' + tenant
+    stack_url = heat_root + '/stacks/my-stack-name'
+    result = client.get_stack(stack_url)
+    def got_stack(result):
+        print("here's a stack:", result)
+        result = client.update_stack(stack_url, None, None,
+                                     {}, 60, template=template)
+        return result
+    def no_stack(failure):
+        failure.trap(APIError)
+        if failure.value.code != 404:
+            return failure
+        result = client.create_stack(
+             heat_root,
+            'my-stack-name', None, None, {}, 60, False, template=template)
+        return result
+    result.addCallback(got_stack).addErrback(no_stack)
+    return result.addCallback(lambda r: print("FINAL RESULT", r))
 
 
 if __name__ == '__main__':

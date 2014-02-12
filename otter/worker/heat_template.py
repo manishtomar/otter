@@ -17,7 +17,7 @@ def lc_to_resource(lc):
     assert lc['type'] == 'launch_server'
     server = lc['args']['server']
 
-    # metadata? 
+    # metadata?
     resource_definition = {
         'type': 'OS::Nova::Server',
         'properties': rename_keys(server, PROPERTY_RENAMES)
@@ -28,7 +28,7 @@ def lc_to_resource(lc):
 def generate_template(launch_config, desired_capacity):
     """
     Generates a template based on the launch config and the desired capacity
-    
+
     TODO:
     1. handle previous resources - if the launch config has changed, this
        implementation just overwrites all the old ones.
@@ -40,4 +40,4 @@ def generate_template(launch_config, desired_capacity):
     name = launch_config['args']['server'].get('name', 'server')
     resources = {'{0}-{1}'.format(name, i): resource_definition
                  for i in range(desired_capacity)}
-    return {'resources': resources}
+    return {'heat_template_version': '2013-05-23', 'resources': resources}

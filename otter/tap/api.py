@@ -37,6 +37,7 @@ from silverberg.cluster import RoundRobinCassandraCluster
 from silverberg.logger import LoggingCQLClient
 from otter.bobby import BobbyClient
 
+from otter.controller import set_authenticate
 
 class Options(usage.Options):
     """
@@ -224,6 +225,7 @@ def makeService(config):
         'store': getattr(store, 'health_check', None)
     })
 
+    set_authenticate(authenticator.authenticate_tenant)
     supervisor = SupervisorService(authenticator.authenticate_tenant, coiterate)
     supervisor.setServiceParent(s)
 
