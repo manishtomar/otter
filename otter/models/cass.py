@@ -65,16 +65,16 @@ _cql_create_group = ('INSERT INTO {cf}("tenantId", "groupId", group_config, laun
                      'VALUES (:tenantId, :groupId, :group_config, :launch_config, :active, '
                      ':pending, :policyTouched, :paused, :desired, :created_at)')
 _cql_view_manifest = ('SELECT "tenantId", "groupId", group_config, launch_config, active, '
-                      'pending, "groupTouched", "policyTouched", paused, desired, created_at '
+                      'pending, "groupTouched", "policyTouched", paused, desired, heat_stack, created_at '
                       'FROM {cf} WHERE "tenantId" = :tenantId AND "groupId" = :groupId')
 _cql_insert_policy = (
     'INSERT INTO {cf}("tenantId", "groupId", "policyId", data, version) '
     'VALUES (:tenantId, :groupId, :{name}policyId, :{name}data, :{name}version)')
 _cql_insert_group_state = ('INSERT INTO {cf}("tenantId", "groupId", active, pending, "groupTouched", '
-                           '"policyTouched", paused, desired) VALUES(:tenantId, :groupId, :active, '
-                           ':pending, :groupTouched, :policyTouched, :paused, :desired)')
+                           '"policyTouched", paused, desired, heat_stack) VALUES(:tenantId, :groupId, :active, '
+                           ':pending, :groupTouched, :policyTouched, :paused, :desired, :heat_stack)')
 _cql_view_group_state = ('SELECT "tenantId", "groupId", group_config, active, pending, "groupTouched", '
-                         '"policyTouched", paused, desired, created_at FROM {cf} WHERE '
+                         '"policyTouched", paused, desired, heat_stack, created_at FROM {cf} WHERE '
                          '"tenantId" = :tenantId AND "groupId" = :groupId;')
 
 # --- Event related queries
@@ -112,7 +112,7 @@ _cql_delete_one_webhook = ('DELETE FROM {cf} WHERE "tenantId" = :tenantId AND '
                            '"groupId" = :groupId AND "policyId" = :policyId AND '
                            '"webhookId" = :webhookId')
 _cql_list_states = ('SELECT "tenantId", "groupId", group_config, active, pending, "groupTouched", '
-                    '"policyTouched", paused, desired, created_at FROM {cf} WHERE '
+                    '"policyTouched", paused, desired, heat_stack, created_at FROM {cf} WHERE '
                     '"tenantId" = :tenantId;')
 _cql_list_policy = ('SELECT "policyId", data FROM {cf} WHERE '
                     '"tenantId" = :tenantId AND "groupId" = :groupId;')
@@ -390,7 +390,8 @@ def _unmarshal_state(state_dict):
         state_dict["groupTouched"],
         _jsonloads_data(state_dict["policyTouched"]),
         bool(ord(state_dict["paused"])),
-        desired=desired_capacity
+        desired=desired_capacity,
+        heat_stack=state_dict.get('heat_stack', None)
     )
 
 
@@ -551,6 +552,7 @@ class CassScalingGroup(object):
                 'pending': serialize_json_data(new_state.pending, 1),
                 'paused': new_state.paused,
                 'desired': new_state.desired,
+                'heat_stack': new_state.heat_stack,
                 'groupTouched': new_state.group_touched,
                 'policyTouched': serialize_json_data(new_state.policy_touched, 1)
             }
