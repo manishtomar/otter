@@ -552,7 +552,7 @@ class CassScalingGroup(object):
                 'pending': serialize_json_data(new_state.pending, 1),
                 'paused': new_state.paused,
                 'desired': new_state.desired,
-                'heat_stack': new_state.heat_stack,
+                'heat_stack': new_state.heat_stack or '',
                 'groupTouched': new_state.group_touched,
                 'policyTouched': serialize_json_data(new_state.policy_touched, 1)
             }

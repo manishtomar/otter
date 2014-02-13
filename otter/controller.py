@@ -222,7 +222,7 @@ def converge(log, transaction_id, state, config, launch_config):
     def _converge((auth_token, service_catalog)):
         worker = HeatWorker(state.tenant_id, state.group_id, launch_config,
                             state.desired, auth_token, log)
-        if state.heat_stack is not None:
+        if state.heat_stack:
             # TODO: if update is currently happening, raise
             # UpdateInProgressError, and have controller queue up another
             # converge after it's over, if another queued converge doesn't

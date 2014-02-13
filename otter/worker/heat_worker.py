@@ -6,6 +6,7 @@ converge.
 from otter.util.config import config_value
 from otter.util.hashkey import generate_server_name
 from otter.util.http import append_segments
+from otter.worker.launch_server_v1 import prepare_launch_config
 from otter.worker.heat_client import HeatClient
 from otter.worker.heat_template import generate_template
 
@@ -16,6 +17,8 @@ class HeatWorker(object):
         self.group_id = group_id
         self.tenant_id = tenant_id
         self.launch_config = launch_config
+        self.launch_config['args'] = prepare_launch_config(
+            self.group_id, launch_config['args'])
         self.desired = desired
         self.client = HeatClient(auth_token, log)
 
@@ -40,5 +43,3 @@ class HeatWorker(object):
             return links[0]['href']
 
         return d.addCallback(get_link)
-
-
