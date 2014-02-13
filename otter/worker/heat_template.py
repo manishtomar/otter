@@ -28,16 +28,11 @@ def lc_to_resource(lc):
 def generate_template(launch_config, desired_capacity):
     """
     Generates a template based on the launch config and the desired capacity
-
-    TODO:
-    1. handle previous resources - if the launch config has changed, this
-       implementation just overwrites all the old ones.
-    2. handle eviction - this implementation just regenerates a template from
-       scratch based on desired capacity, and will evict the newest servers
-       first.
     """
     resource_definition = lc_to_resource(launch_config)
     name = launch_config['args']['server'].get('name', 'server')
     resources = {'{0}-{1}'.format(name, i): resource_definition
                  for i in range(desired_capacity)}
+    # HEAT BUG: stack gets created if this template version is
+    # missing - it passes validation and stack creation.
     return {'heat_template_version': '2013-05-23', 'resources': resources}
