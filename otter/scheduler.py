@@ -167,7 +167,7 @@ def check_events_in_bucket(log, store, bucket, now, batchsize):
         d = store.fetch_and_delete(bucket, now, batchsize)
         d.addCallback(process_events, store, log)
         d.addCallback(check_for_more)
-        d.addErrback(log.err)
+        d.addErrback(log.err, 'Scheduler error')
         return d
 
     return _do_check()
