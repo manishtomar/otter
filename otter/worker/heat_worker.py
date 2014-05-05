@@ -2,8 +2,6 @@
 Worker that abstracts some of functionality to update an otter stack and
 converge.
 """
-from urlparse import urlsplit, urlunsplit
-
 from otter.util.config import config_value
 from otter.util.hashkey import generate_server_name
 from otter.util.http import append_segments
@@ -24,6 +22,7 @@ class HeatWorker(object):
             self.group_id, launch_config['args'])
         self.desired = desired
         self.client = HeatClient(auth_token, log, treq)
+        self.log = log
 
     def create_stack(self):
         """
@@ -42,13 +41,7 @@ class HeatWorker(object):
         def get_link(response_body):
             links = [link for link in response_body['stack']['links']
                      if link['rel'] == 'self']
-            # HEAT BUG: the stack links returned are at the
-            # domain  localhost:8004
-            link = links[0]['href']
-            correct = urlsplit(config_value('heat.url'))
-            incorrect = urlsplit(link)
-            real_link = urlunsplit(correct[:2] + incorrect[2:])
-            return real_link
+            return links[0]['href']
 
         return d.addCallback(get_link)
 
