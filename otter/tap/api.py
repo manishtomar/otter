@@ -23,8 +23,8 @@ from otter.rest.admin import OtterAdmin
 from otter.rest.application import Otter
 from otter.rest.bobby import set_bobby
 from otter.util.config import set_config_data, config_value
+from otter.util.deferredutils import timeout_deferred
 from otter.models.cass import CassAdmin, CassScalingGroupCollection
-from otter.models.mock import MockAdmin, MockScalingGroupCollection
 from otter.scheduler import SchedulerService
 
 from otter.supervisor import SupervisorService, set_supervisor
@@ -56,10 +56,6 @@ class Options(usage.Options):
          "strports description of the port for API connections."],
         ["config", "c", "config.json",
          "path to JSON configuration file."]
-    ]
-
-    optFlags = [
-        ["mock", "m", "whether to use a mock back end instead of cassandra"]
     ]
 
     def postOptions(self):
@@ -138,7 +134,8 @@ class HealthChecker(object):
     :param checks: a dictionary containing the name of things to health check
         mapped to their health check callabls
     """
-    def __init__(self, checks=None):
+    def __init__(self, clock, checks=None):
+        self.clock = clock
         self.checks = checks
         if checks is None:
             self.checks = {}
@@ -157,6 +154,7 @@ class HealthChecker(object):
         for k, v in self.checks.iteritems():
             keys.append(k)
             d = maybeDeferred(v)
+            timeout_deferred(d, 15, self.clock, '{} health check'.format(k))
             d.addErrback(
                 lambda f: (False, {'reason': f.getTraceback()}))
             checks.append(d)
@@ -182,20 +180,16 @@ def makeService(config):
 
     s = MultiService()
 
-    if not config_value('mock'):
-        seed_endpoints = [
-            clientFromString(reactor, str(host))
-            for host in config_value('cassandra.seed_hosts')]
+    seed_endpoints = [
+        clientFromString(reactor, str(host))
+        for host in config_value('cassandra.seed_hosts')]
 
-        cassandra_cluster = LoggingCQLClient(RoundRobinCassandraCluster(
-            seed_endpoints,
-            config_value('cassandra.keyspace')), log.bind(system='otter.silverberg'))
+    cassandra_cluster = LoggingCQLClient(RoundRobinCassandraCluster(
+        seed_endpoints,
+        config_value('cassandra.keyspace')), log.bind(system='otter.silverberg'))
 
-        store = CassScalingGroupCollection(cassandra_cluster)
-        admin_store = CassAdmin(cassandra_cluster)
-    else:
-        store = MockScalingGroupCollection()
-        admin_store = MockAdmin()
+    store = CassScalingGroupCollection(cassandra_cluster, reactor)
+    admin_store = CassAdmin(cassandra_cluster)
 
     bobby_url = config_value('bobby_url')
     if bobby_url is not None:
@@ -221,15 +215,17 @@ def makeService(config):
             retry_interval=config_value('identity.retry_interval')),
         cache_ttl)
 
-    health_checker = HealthChecker({
-        'store': getattr(store, 'health_check', None)
-    })
-
     set_authenticate(authenticator.authenticate_tenant)
     supervisor = SupervisorService(authenticator.authenticate_tenant, coiterate)
     supervisor.setServiceParent(s)
 
     set_supervisor(supervisor)
+
+    health_checker = HealthChecker(reactor, {
+        'store': getattr(store, 'health_check', None),
+        'kazoo': store.kazoo_health_check,
+        'supervisor': supervisor.health_check
+    })
 
     # Setup cassandra cluster to disconnect when otter shuts down
     if 'cassandra_cluster' in locals():
@@ -254,8 +250,6 @@ def makeService(config):
 
     # Setup Kazoo client
     if config_value('zookeeper'):
-        health_checker.checks['scheduler'] = (
-            lambda: (False, {'reason': 'scheduler not ready yet'}))
         threads = config_value('zookeeper.threads') or 10
         kz_client = TxKazooClient(hosts=config_value('zookeeper.hosts'),
                                   threads=threads, txlog=log.bind(system='kazoo'))
@@ -264,9 +258,8 @@ def makeService(config):
         def on_client_ready(_):
             # Setup scheduler service after starting
             scheduler = setup_scheduler(s, store, kz_client)
-            health_checker.checks['scheduler'] = getattr(
-                scheduler, 'health_check',
-                lambda: (False, 'scheduler health check not implemented'))
+            health_checker.checks['scheduler'] = scheduler.health_check
+            otter.scheduler = scheduler
             # Set the client after starting
             # NOTE: There is small amount of time when the start is not finished
             # and the kz_client is not set in which case policy execution and group

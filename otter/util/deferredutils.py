@@ -175,6 +175,12 @@ class DeferredPool(object):
         self._if_empty_notify()
         return d
 
+    def __len__(self):
+        """
+        Return number of deferreds in the pool
+        """
+        return len(self._pool)
+
 
 def log_with_time(result, reactor, log, start, msg, time_kwarg=None):
     """
@@ -218,4 +224,19 @@ def with_lock(reactor, lock, log, func, *args, **kwargs):
         return d
 
     d.addCallback(lock_acquired)
+    return d
+
+
+def delay(result, reactor, seconds):
+    """
+    Delays the result by `seconds`.
+
+    :param result: Result to be returned after `seconds` have passed
+    :param reactor: IReactorTime provider
+    :param seconds: Number of seconds to delay
+
+    :return: `result` after `seconds` have passed
+    """
+    d = defer.Deferred()
+    reactor.callLater(seconds, d.callback, result)
     return d

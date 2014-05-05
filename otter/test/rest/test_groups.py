@@ -4,6 +4,7 @@ all scaling groups, and creating/viewing/deleting a scaling group.
 """
 import json
 from jsonschema import ValidationError
+from copy import deepcopy
 
 import mock
 
@@ -97,14 +98,13 @@ class AllGroupsEndpointTestCase(RestAPITestMixin, TestCase):
         """
         super(AllGroupsEndpointTestCase, self).setUp()
         self.mock_controller = patch(self, 'otter.rest.groups.controller')
-        patch(self, 'otter.util.http.get_url_root', return_value="")
 
         # Patch supervisor
         self.supervisor = mock.Mock(spec=['validate_launch_config'])
         self.supervisor.validate_launch_config.return_value = defer.succeed(None)
         set_supervisor(self.supervisor)
 
-        set_config_data({'limits': {'pagination': 100}})
+        set_config_data({'limits': {'pagination': 100}, 'url_root': ''})
 
     def tearDown(self):
         """
@@ -259,7 +259,7 @@ class AllGroupsEndpointTestCase(RestAPITestMixin, TestCase):
         validate(resp, rest_schemas.list_groups_response)
         self.assertEqual(
             resp['groups_links'],
-            [{'href': self.endpoint + '?marker=one&limit=1', 'rel': 'next'}])
+            [{'href': self.endpoint + '?limit=1&marker=one', 'rel': 'next'}])
 
     def test_group_create_bad_input_400(self):
         """
@@ -448,9 +448,11 @@ class AllGroupsEndpointTestCase(RestAPITestMixin, TestCase):
     def test_group_create_calls_obey_config_changes(self):
         """
         If the group creation succeeds, ``obey_config_change`` is called with
-        the updated log, transaction id, config, group, and state
+        the updated log, transaction id, config, group, state, and launch
+        config
         """
         config = config_examples()[0]
+        launch = launch_examples()[0]
 
         expected_config = config.copy()
         expected_config.setdefault('maxEntities', 25)
@@ -458,7 +460,7 @@ class AllGroupsEndpointTestCase(RestAPITestMixin, TestCase):
 
         manifest = {
             'groupConfiguration': expected_config,
-            'launchConfiguration': launch_examples()[0],
+            'launchConfiguration': launch
         }
         self.mock_store.create_scaling_group.return_value = defer.succeed(manifest)
         self._test_successful_create(manifest)
@@ -466,7 +468,7 @@ class AllGroupsEndpointTestCase(RestAPITestMixin, TestCase):
         self.mock_group.modify_state.assert_called_once_with(mock.ANY)
         self.mock_controller.obey_config_change.assert_called_once_with(
             mock.ANY, "transaction-id", expected_config, self.mock_group,
-            self.mock_state)
+            self.mock_state, launch_config=launch)
 
     def test_create_group_propagates_modify_state_errors(self):
         """
@@ -509,7 +511,8 @@ class AllGroupsBobbyEndpointTestCase(RestAPITestMixin, TestCase):
 
         super(AllGroupsBobbyEndpointTestCase, self).setUp()
         self.mock_controller = patch(self, 'otter.rest.groups.controller')
-        patch(self, 'otter.util.http.get_url_root', return_value="")
+        set_config_data({'url_root': ''})
+        self.addCleanup(set_config_data, {})
 
         # Patch supervisor
         supervisor = mock.Mock(spec=['validate_launch_config'])
@@ -590,7 +593,7 @@ class OneGroupTestCase(RestAPITestMixin, TestCase):
         response_body = self.assert_status_code(404, method="GET")
         self.mock_store.get_scaling_group.assert_called_once_with(
             mock.ANY, '11111', 'one')
-        self.mock_group.view_manifest.assert_called_once_with()
+        self.mock_group.view_manifest.assert_called_once_with(False)
 
         resp = json.loads(response_body)
         self.assertEqual(resp['error']['type'], 'NoSuchScalingGroupError')
@@ -659,7 +662,82 @@ class OneGroupTestCase(RestAPITestMixin, TestCase):
 
         self.mock_store.get_scaling_group.assert_called_once_with(
             mock.ANY, '11111', 'one')
-        self.mock_group.view_manifest.assert_called_once_with()
+        self.mock_group.view_manifest.assert_called_once_with(False)
+
+    def test_view_manifest_with_webhooks(self):
+        """
+        `view_manifest` gives webhooks information in policies if query args contains
+        ?webhooks=true
+        """
+        manifest = {
+            'groupConfiguration': config_examples()[0],
+            'launchConfiguration': launch_examples()[0],
+            'id': 'one',
+            'state': GroupState('11111', '1', '', {}, {}, None, {}, False),
+            'scalingPolicies': [dict(id="5", **policy_examples()[0]),
+                                dict(id="6", **policy_examples()[1])]
+        }
+        webhooks = [
+            [
+                {
+                    'id': '3',
+                    'name': 'three',
+                    'metadata': {},
+                    'capability': {"version": "1", 'hash': 'xxx'}
+                },
+                {
+                    'id': '4',
+                    'name': 'four',
+                    'metadata': {},
+                    'capability': {"version": "1", 'hash': 'yyy'}
+                }
+            ],
+            [
+                {
+                    'id': '5',
+                    'name': 'five',
+                    'metadata': {},
+                    'capability': {"version": "1", 'hash': 'xxx'}
+                },
+                {
+                    'id': '6',
+                    'name': 'six',
+                    'metadata': {},
+                    'capability': {"version": "1", 'hash': 'yyy'}
+                }
+            ]
+        ]
+        webhooks_internal_links = [
+            [[{"href": '/v1.0/11111/groups/one/policies/5/webhooks/3/', "rel": "self"},
+              {"href": '/v1.0/execute/1/xxx/', "rel": "capability"}],
+             [{"href": '/v1.0/11111/groups/one/policies/5/webhooks/4/', "rel": "self"},
+              {"href": '/v1.0/execute/1/yyy/', "rel": "capability"}]],
+            [[{"href": '/v1.0/11111/groups/one/policies/6/webhooks/5/', "rel": "self"},
+              {"href": '/v1.0/execute/1/xxx/', "rel": "capability"}],
+             [{"href": '/v1.0/11111/groups/one/policies/6/webhooks/6/', "rel": "self"},
+              {"href": '/v1.0/execute/1/yyy/', "rel": "capability"}]]
+        ]
+        webhooks_links = [
+            [{'href': '/v1.0/11111/groups/one/policies/5/webhooks/', 'rel': 'webhooks'}],
+            [{'href': '/v1.0/11111/groups/one/policies/6/webhooks/', 'rel': 'webhooks'}]
+        ]
+        manifest['scalingPolicies'][0]['webhooks'] = webhooks[0]
+        manifest['scalingPolicies'][1]['webhooks'] = webhooks[1]
+        self.mock_group.view_manifest.return_value = defer.succeed(manifest)
+
+        response_body = self.assert_status_code(
+            200, endpoint="{0}?webhooks=true".format(self.endpoint), method="GET")
+        resp = json.loads(response_body)
+        validate(resp, rest_schemas.create_and_manifest_response)
+
+        exp_policies = deepcopy(manifest['scalingPolicies'])
+        for i in [0, 1]:
+            exp_policies[i]['webhooks'] = deepcopy(webhooks[i])
+            for j, webhook in enumerate(exp_policies[i]['webhooks']):
+                exp_policies[i]['webhooks'][j]['links'] = webhooks_internal_links[i][j]
+            exp_policies[i]['webhooks_links'] = webhooks_links[i]
+
+        self.assertEqual(resp['group']['scalingPolicies'], exp_policies)
 
     def test_group_delete(self):
         """
@@ -691,9 +769,11 @@ class OneGroupTestCase(RestAPITestMixin, TestCase):
             204, endpoint="{0}?force=true".format(self.endpoint),
             method="DELETE")
 
-        self.mock_group.update_config.assert_called_once_with(
-            {'maxEntities': 0, 'minEntities': 0, 'name': 'group1'})
-        self.assertEqual(1, self.mock_controller.obey_config_change.call_count)
+        expected_config = {'maxEntities': 0, 'minEntities': 0, 'name': 'group1'}
+        self.mock_group.update_config.assert_called_once_with(expected_config)
+        self.mock_controller.obey_config_change.assert_called_once_with(
+            mock.ANY, "transaction-id", expected_config, self.mock_group,
+            self.mock_state, launch_config=None)
         self.mock_group.delete_group.assert_called_once_with()
 
     def test_group_delete_force_case_insensitive(self):
@@ -711,9 +791,11 @@ class OneGroupTestCase(RestAPITestMixin, TestCase):
             204, endpoint="{0}?force=true".format(self.endpoint),
             method="DELETE")
 
-        self.mock_group.update_config.assert_called_once_with(
-            {'maxEntities': 0, 'minEntities': 0, 'name': 'group1'})
-        self.assertEqual(1, self.mock_controller.obey_config_change.call_count)
+        expected_config = {'maxEntities': 0, 'minEntities': 0, 'name': 'group1'}
+        self.mock_group.update_config.assert_called_once_with(expected_config)
+        self.mock_controller.obey_config_change.assert_called_once_with(
+            mock.ANY, "transaction-id", expected_config, self.mock_group,
+            self.mock_state, launch_config=None)
         self.mock_group.delete_group.assert_called_once_with()
 
     def test_group_delete_force_garbage_arg(self):

@@ -5,10 +5,11 @@ import time
 import itertools
 import uuid
 import functools
+import weakref
 
 from zope.interface import implementer
 
-from twisted.internet import defer, reactor
+from twisted.internet import defer
 from jsonschema import ValidationError
 from otter.models.interface import (
     GroupState, GroupNotEmptyError, IScalingGroup,
@@ -20,8 +21,9 @@ from otter.util.cqlbatch import Batch
 from otter.util.hashkey import generate_capability, generate_key_str
 from otter.util import timestamp
 from otter.util.config import config_value
-from otter.util.deferredutils import with_lock, timeout_deferred
+from otter.util.deferredutils import with_lock
 from otter.scheduler import next_cron_occurrence
+from otter.log import log as otter_log
 
 from silverberg.client import ConsistencyLevel
 
@@ -119,6 +121,8 @@ _cql_list_policy = ('SELECT "policyId", data FROM {cf} WHERE '
 _cql_list_webhook = ('SELECT "webhookId", data, capability FROM {cf} '
                      'WHERE "tenantId" = :tenantId AND "groupId" = :groupId AND '
                      '"policyId" = :policyId;')
+_cql_list_all_in_group = ('SELECT * FROM {cf} WHERE "tenantId" = :tenantId '
+                          'AND "groupId" = :groupId {order_by};')
 
 _cql_find_webhook_token = ('SELECT "tenantId", "groupId", "policyId" FROM {cf} WHERE '
                            '"webhookKey" = :webhookKey;')
@@ -395,6 +399,40 @@ def _unmarshal_state(state_dict):
     )
 
 
+def assemble_webhooks_in_policies(policies, webhooks):
+    """
+    Assemble webhooks inside policies. 'webhooks' property will be added to
+    each policy `dict` in `policies`. It will be list of webhooks taken from `webhooks`
+
+    :param policies: list of policy `dict` sorted based on 'id' based on `group_schemas.policy`
+    :param webhooks: list of webhook `dict` sorted based on 'policyId' and 'webhookId'
+                     based on `model_schemas.webhook`
+
+    :return: policies with webhooks in them
+    """
+    # Assuming policies and webhooks are sorted based on policyId and
+    # (policyId, webhookId) respectively
+    iwebhooks = iter(webhooks)
+    ipolicies = iter(policies)
+    try:
+        webhook = iwebhooks.next()
+        policy = ipolicies.next()
+        while True:
+            policy.setdefault('webhooks', [])
+            if policy['id'] == webhook['policyId']:
+                policy['webhooks'].append(
+                    _assemble_webhook_from_row(webhook, include_id=True))
+                webhook = iwebhooks.next()
+            elif policy['id'] < webhook['policyId']:
+                policy = ipolicies.next()
+            else:
+                webhook = iwebhooks.next()
+    except StopIteration:
+        # Add empty webhooks for remaining policies
+        [p.update({'webhooks': []}) for p in ipolicies]
+    return policies
+
+
 def verified_view(connection, view_query, del_query, data, consistency, exception_if_empty, log):
     """
     Ensures the view query does not get resurrected row, i.e. one that does not have "created_at" in it.
@@ -416,6 +454,29 @@ def verified_view(connection, view_query, del_query, data, consistency, exceptio
     return d.addCallback(_check_resurrection)
 
 
+class WeakLocks(object):
+    """
+    A cache of DeferredLocks mapped based on uuid that gets garbage collected
+    after the lock has been utilized
+    """
+
+    def __init__(self):
+        self._locks = weakref.WeakValueDictionary()
+
+    def get_lock(self, uuid):
+        """
+        Get lock based on uuid
+
+        :param str uuid: Lock's corresponding UUID
+        :return `DeferredLock`
+        """
+        lock = self._locks.get(uuid)
+        if not lock:
+            lock = defer.DeferredLock()
+            self._locks[uuid] = lock
+        return lock
+
+
 @implementer(IScalingGroup)
 class CassScalingGroup(object):
     """
@@ -431,6 +492,18 @@ class CassScalingGroup(object):
     :ivar connection: silverberg client used to connect to cassandra
     :type connection: :class:`silverberg.client.CQLClient`
 
+    :ivar buckets: Scheduler buckets
+    :type buckets: iterator of buckets that does not end
+
+    :ivar kz_client: Kazoo client used for locking
+    :type kz_client: :class:`txkazoo.TxKazooClient`
+
+    :ivar reactor: Reactor used for time manipulations
+    :type reactor: :class:`twisted.internet.reactor.IReactorTime` provider
+
+    :ivar local_locks: Local locks used when modifying state
+    :type local_locks: :class:`WeakLocks`
+
     IMPORTANT REMINDER: In CQL, update will create a new row if one doesn't
     exist.  Therefore, before doing an update, a read must be performed first
     else an entry is created where none should have been.
@@ -442,7 +515,8 @@ class CassScalingGroup(object):
     Also, because deletes are done as tombstones rather than actually deleting,
     deletes are also updates and hence a read must be performed before deletes.
     """
-    def __init__(self, log, tenant_id, uuid, connection, buckets, kz_client):
+    def __init__(self, log, tenant_id, uuid, connection, buckets, kz_client, reactor,
+                 local_locks):
         """
         Creates a CassScalingGroup object.
         """
@@ -454,6 +528,9 @@ class CassScalingGroup(object):
         self.connection = connection
         self.buckets = buckets
         self.kz_client = kz_client
+        self.reactor = reactor
+        self.local_locks = local_locks
+
         self.group_table = "scaling_group"
         self.launch_table = "launch_config"
         self.policies_table = "scaling_policies"
@@ -461,24 +538,32 @@ class CassScalingGroup(object):
         self.webhooks_table = "policy_webhooks"
         self.event_table = "scaling_schedule_v2"
 
-    def view_manifest(self):
+    def view_manifest(self, with_webhooks=False):
         """
         see :meth:`otter.models.interface.IScalingGroup.view_manifest`
         """
         def _get_policies(group):
-            """
-            Now that we know the group exists, get its policies
-            """
-            limit = config_value('limits.pagination') or 100
-            d = self._naive_list_policies(limit=limit)
-            d.addCallback(lambda policies: {
+            d = self._naive_list_policies()
+            return d.addCallback(lambda policies: (group, policies))
+
+        def _get_policies_and_webhooks(group):
+            d = defer.gatherResults(
+                [self._naive_list_policies(),
+                 self._naive_list_all_webhooks()], consumeErrors=True)
+            return d.addCallback(lambda results: (group, results))
+
+        def _assemble_webhooks((group, results)):
+            policies, webhooks = results
+            return group, assemble_webhooks_in_policies(policies, webhooks)
+
+        def _generate_manifest((group, policies)):
+            return {
                 'groupConfiguration': _jsonloads_data(group['group_config']),
                 'launchConfiguration': _jsonloads_data(group['launch_config']),
                 'scalingPolicies': policies,
                 'id': self.uuid,
                 'state': _unmarshal_state(group)
-            })
-            return d
+            }
 
         view_query = _cql_view_manifest.format(cf=self.group_table)
         del_query = _cql_delete_all_in_group.format(cf=self.group_table, name='')
@@ -487,7 +572,12 @@ class CassScalingGroup(object):
                            "groupId": self.uuid},
                           get_consistency_level('view', 'group'),
                           NoSuchScalingGroupError(self.tenant_id, self.uuid), self.log)
-        d.addCallback(_get_policies)
+        if with_webhooks:
+            d.addCallback(_get_policies_and_webhooks)
+            d.addCallback(_assemble_webhooks)
+        else:
+            d.addCallback(_get_policies)
+        d.addCallback(_generate_manifest)
         return d
 
     def view_config(self):
@@ -566,8 +656,9 @@ class CassScalingGroup(object):
 
         lock = self.kz_client.Lock(LOCK_PATH + '/' + self.uuid)
         lock.acquire = functools.partial(lock.acquire, timeout=120)
-        # TODO: Better way to get reactor instead of importing?
-        return with_lock(reactor, lock, log.bind(category='locking'), _modify_state)
+        local_lock = self.local_locks.get_lock(self.uuid)
+        return local_lock.run(with_lock, self.reactor, lock,
+                              log.bind(category='locking'), _modify_state)
 
     def update_config(self, data):
         """
@@ -760,6 +851,18 @@ class CassScalingGroup(object):
         d.addCallback(_do_delete)
         return d
 
+    def _naive_list_all_webhooks(self):
+        """
+        List all webhooks of a group. Does not check if group exists and
+        does not paginate
+        """
+        d = self.connection.execute(
+            _cql_list_all_in_group.format(cf=self.webhooks_table,
+                                          order_by='ORDER BY "groupId", "policyId", "webhookId"'),
+            {'tenantId': self.tenant_id, 'groupId': self.uuid},
+            get_consistency_level('list', 'webhook'))
+        return d
+
     def _naive_list_webhooks(self, policy_id, limit, marker):
         """
         Like :meth:`otter.models.cass.CassScalingGroup.list_webhooks`, but gets
@@ -937,13 +1040,15 @@ class CassScalingGroup(object):
 
         lock = self.kz_client.Lock(LOCK_PATH + '/' + self.uuid)
         lock.acquire = functools.partial(lock.acquire, timeout=120)
-        return with_lock(reactor, lock, log.bind(category='locking'), _delete_group)
+        return with_lock(self.reactor, lock, log.bind(category='locking'), _delete_group)
 
 
 @implementer(IScalingGroupCollection, IScalingScheduleCollection)
 class CassScalingGroupCollection:
     """
     .. autointerface:: otter.models.interface.IScalingGroupCollection
+
+    :param reactor: IReactorTime provider
 
     The Cassandra schema structure::
 
@@ -973,7 +1078,7 @@ class CassScalingGroupCollection:
     Also, because deletes are done as tombstones rather than actually deleting,
     deletes are also updates and hence a read must be performed before deletes.
     """
-    def __init__(self, connection):
+    def __init__(self, connection, reactor):
         """
         Init
 
@@ -982,10 +1087,13 @@ class CassScalingGroupCollection:
         :param cflist: Column family list
         """
         self.connection = connection
+        self.reactor = reactor
+        self.local_locks = WeakLocks()
         self.group_table = "scaling_group"
         self.launch_table = "launch_config"
         self.policies_table = "scaling_policies"
         self.webhooks_table = "policy_webhooks"
+        self.webhook_keys_table = "webhook_keys"
         self.state_table = "group_state"
         self.event_table = "scaling_schedule_v2"
         self.buckets = None
@@ -1113,7 +1221,8 @@ class CassScalingGroupCollection:
         see :meth:`otter.models.interface.IScalingGroupCollection.get_scaling_group`
         """
         return CassScalingGroup(log, tenant_id, scaling_group_id,
-                                self.connection, self.buckets, self.kz_client)
+                                self.connection, self.buckets, self.kz_client, self.reactor,
+                                self.local_locks)
 
     def fetch_and_delete(self, bucket, now, size=100):
         """
@@ -1168,6 +1277,37 @@ class CassScalingGroupCollection:
         """
         see :meth:`otter.models.interface.IScalingGroupCollection.webhook_info_by_hash`
         """
+        d = self._webhook_info_from_table(log, capability_hash)
+
+        def not_found(f):
+            if not f.check(UnrecognizedCapabilityError):
+                log.err(f, 'Error getting webhook info from table')
+            return self._webhook_info_by_index(log, capability_hash)
+
+        d.addErrback(not_found)
+        return d
+
+    def _webhook_info_from_table(self, log, capability_hash):
+        """
+        Get webhook info based on hash by using the new webhook_keys table
+        """
+        d = self.connection.execute(
+            _cql_find_webhook_token.format(cf=self.webhook_keys_table),
+            {"webhookKey": capability_hash}, get_consistency_level('list', 'policy'))
+
+        def extract_info(rows):
+            if len(rows) == 0:
+                raise UnrecognizedCapabilityError(capability_hash, 1)
+            r = rows[0]
+            return (r['tenantId'], r['groupId'], r['policyId'])
+
+        d.addCallback(extract_info)
+        return d
+
+    def _webhook_info_by_index(self, log, capability_hash):
+        """
+        Get webhook info based on hash by using the INDEX
+        """
         def _do_webhook_lookup(webhook_rec):
             res = webhook_rec
             if len(res) == 0:
@@ -1199,50 +1339,48 @@ class CassScalingGroupCollection:
             ('groups', 'policies', 'webhooks'), results)))
         return d
 
-    def health_check(self, clock=None):
+    def kazoo_health_check(self):
+        """
+        Checks zookeer connection status and acquires a temporary lock to see if that
+        recipe is working fine
+
+        return is same as described in
+        :meth:`otter.models.interface.IScalingGroupCollection.health_check`
+        """
+        if self.kz_client is None:
+            return False, {'reason': 'No client yet'}
+        elif not self.kz_client.connected:
+            return False, {'reason': 'Not connected yet'}
+        elif self.kz_client.state != KazooState.CONNECTED:
+            return False, {'zookeeper_state': self.kz_client.state}
+
+        # check if sample lock can be acquired
+        lock_path = LOCK_PATH + '/test_{}'.format(uuid.uuid1())
+        lock = self.kz_client.Lock(lock_path)
+        lock.acquire = functools.partial(lock.acquire, timeout=5)
+        start_time = self.reactor.seconds()
+        d = with_lock(self.reactor, lock,
+                      otter_log.bind(system='health_check'), lambda: None)
+
+        d.addCallback(lambda _: self.kz_client.delete(lock_path, recursive=True))
+        d.addCallback(lambda _: (True, {'total_time': self.reactor.seconds() - start_time}))
+        return d
+
+    def health_check(self):
         """
         see :meth:`otter.models.interface.IScalingGroupCollection.health_check`
 
         In addition to ``healthy`` and ``time``, returns whether it can
-        connect to cassandra and zookeeper
+        connect to cassandra
         """
-        if clock is None:
-            clock = reactor
-
-        if self.kz_client is None:
-            zk_health = {'zookeeper': False,
-                         'zookeeper_state': 'Not connected yet'}
-        elif not self.kz_client.connected:
-            zk_health = {'zookeeper': False,
-                         'zookeeper_state': 'Not connected yet'}
-        else:
-            state = self.kz_client.state
-            zk_health = {'zookeeper': state == KazooState.CONNECTED,
-                         'zookeeper_state': state}
-
-        start_time = clock.seconds()
+        start_time = self.reactor.seconds()
 
         d = self.connection.execute(
             _cql_health_check.format(cf=self.group_table), {},
             get_consistency_level('health', 'check'))
 
-        # stop health check after 15 seconds
-        timeout_deferred(d, 15, clock=clock,
-                         deferred_description='cassandra health check')
-
-        d.addCallback(lambda _: (zk_health['zookeeper'], dict(
-            cassandra=True,
-            cassandra_time=(clock.seconds() - start_time),
-            **zk_health
-        )))
-
-        d.addErrback(lambda f: (False, dict(
-            cassandra=False,
-            cassandra_failure=repr(f.value),
-            cassandra_time=clock.seconds() - start_time,
-            **zk_health
-        )))
-
+        d.addCallback(
+            lambda _: (True, {'cassandra_time': (self.reactor.seconds() - start_time)}))
         return d
 
 

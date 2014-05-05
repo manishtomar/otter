@@ -27,19 +27,12 @@ import iso8601
 import json
 
 from twisted.internet import defer
-from twisted.internet.task import deferLater
 
 from otter.log import audit
-from otter.models.interface import NoSuchScalingGroupError
-from otter.supervisor import get_supervisor
 from otter.json_schema.group_schemas import MAX_ENTITIES
 from otter.util.deferredutils import unwrap_first_error
 from otter.util.timestamp import from_timestamp
-
 from otter.worker.heat_worker import HeatWorker
-
-# Amount of time spaced between starting delete jobs when scaling down
-DELETE_WAIT_INTERVAL = 20
 
 
 class CannotExecutePolicyError(Exception):
@@ -101,7 +94,8 @@ def _do_convergence_audit_log(_, log, delta, state):
     return state
 
 
-def obey_config_change(log, transaction_id, config, scaling_group, state):
+def obey_config_change(log, transaction_id, config, scaling_group, state,
+                       launch_config):
     """
     Given the config change, do servers need to be started or deleted
 
@@ -110,6 +104,7 @@ def obey_config_change(log, transaction_id, config, scaling_group, state):
     :param log: A twiggy bound log for logging
     :param str transaction_id: the transaction id
     :param dict config: the scaling group config
+    :param dict launch_config: the scaling group launch config
     :param scaling_group: an IScalingGroup provider
     :param state: a :class:`otter.models.interface.GroupState` representing the
         state
