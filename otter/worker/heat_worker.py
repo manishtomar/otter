@@ -11,6 +11,8 @@ from otter.worker.launch_server_v1 import prepare_launch_config
 from otter.worker.heat_client import HeatClient
 from otter.worker.heat_template import generate_template
 
+from otter.util import logging_treq as treq
+
 
 class HeatWorker(object):
     def __init__(self, tenant_id, group_id, launch_config, desired,
@@ -21,7 +23,7 @@ class HeatWorker(object):
         self.launch_config['args'] = prepare_launch_config(
             self.group_id, launch_config['args'])
         self.desired = desired
-        self.client = HeatClient(auth_token, log)
+        self.client = HeatClient(auth_token, log, treq)
 
     def create_stack(self):
         """
@@ -34,9 +36,8 @@ class HeatWorker(object):
                                             generate_server_name())
         template = generate_template(self.launch_config, self.desired)
         url = append_segments(config_value('heat.url'), self.tenant_id)
-        d = self.client.create_stack(url, stack_name, environment={},
-                                     files={}, parameters={}, timeout=60,
-                                     disable_rollback=True, template=template)
+        d = self.client.create_stack(url, stack_name, parameters={}, timeout=60,
+                                     template=template)
 
         def get_link(response_body):
             links = [link for link in response_body['stack']['links']
@@ -64,8 +65,7 @@ class HeatWorker(object):
            servers first.
         """
         template = generate_template(self.launch_config, self.desired)
-        d = self.client.update_stack(stack_url, environment={}, files={},
-                                     parameters={}, timeout=60,
+        d = self.client.update_stack(stack_url, parameters={}, timeout=60,
                                      template=template)
         d.addErrback(self.log.err)
         return d
