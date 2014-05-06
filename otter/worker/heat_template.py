@@ -33,6 +33,11 @@ def generate_template(launch_config, desired_capacity):
     name = launch_config['args']['server'].get('name', 'server')
     resources = {'{0}-{1}'.format(name, i): resource_definition
                  for i in range(desired_capacity)}
-    # HEAT BUG: stack gets created if this template version is
-    # missing - it passes validation and stack creation.
+    # HEAT BUG: currently, without the version, the heat template version
+    # gets coerced to 2012-12-12, for which 'resources' is invalid.
+    #
+    # The error returned says that 'resources' is an invalid section.
+    # https://review.openstack.org/#/c/90109/  should address the issue.
+    #
+    # TODO: should generate YAML and use strict HOT syntax instead of json
     return {'heat_template_version': '2013-05-23', 'resources': resources}
