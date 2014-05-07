@@ -215,6 +215,12 @@ def converge(log, transaction_id, state, config, launch_config):
     Update/create stack
     """
     def _converge((auth_token, service_catalog)):
+        # TODO: allow for either the auth token to be passed (for example when
+        # taken directly from a request), or alternately get authentication
+        # if this is an async converge independent of a request
+
+        # TODO: pass the tenant's URL from the service catalog, or form it
+        # from the tenant ID if the auth token is forwarded from the request
         worker = HeatWorker(state.tenant_id, state.group_id, launch_config,
                             state.desired, auth_token, log)
         if state.heat_stack:

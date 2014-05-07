@@ -15,6 +15,10 @@ from otter.util import logging_treq as treq
 class HeatWorker(object):
     def __init__(self, tenant_id, group_id, launch_config, desired,
                  auth_token, log=None):
+        """
+        TODO: take the heat URL here or in create_stack, instead of the tenant
+        id
+        """
         self.group_id = group_id
         self.tenant_id = tenant_id
         self.launch_config = launch_config
