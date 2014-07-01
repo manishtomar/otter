@@ -130,3 +130,46 @@ class ServersTests(AutoscaleFixture):
         self.assertEqual(resp.status_code, 400,
                          'Delete server status is {}. Expected 400'.format(resp.status_code))
         self.assertIn('InvalidQueryArgument', resp.content)
+
+
+class CLBServersTest(AutoscaleFixture):
+    """
+    Server tests with CLB
+    """
+
+    def setUp(self):
+        """
+        Create group with CLB
+        """
+        clb_response = cls.lbaas_client.create_load_balancer('test', [], 'HTTP', 80, "PUBLIC")
+        self.clb_id = clb_response.entity.id
+        behavior = AutoscaleBehaviors(self.autoscale_config, self.autoscale_client)
+        clbs = [{'loadBalancerId': self.clb_id, 'port': 80}]
+        self.groupid = behavior.create_scaling_group_given(
+                gc_min_entities=1, lc_load_balancers=clbs).entity.id
+
+    def tearDown(self):
+        """
+        Delete group and CLB
+        """
+        self.autoscale_client.delete_group(self.group_id, force='true')
+        self.lbaas_client.delete_load_balancer(self.clb_id)
+
+    @tags(speed='slow')
+    def test_delete_removes_and_replaces_with_lb(self):
+        """
+        `DELETE serverId` actually deletes the server and replaces with new server with CLB
+        """
+        server_id = self.wait_for_expected_number_of_active_servers(self.groupid, 1)[0]
+        resp = self.autoscale_client.delete_server(self.groupid, server_id)
+        self.assertEqual(resp.status_code, 202,
+                         'Delete server status is {}. Expected 202'.format(resp.status_code))
+        # Is server really deleted?
+        test = ServersTest()
+        test.groupid = self.groupid
+        test.assert_server_deleted(server_id)
+        # Server removed from CLB?
+        nodes = self.lbaas_client.list_nodes(self.clb_id)
+        self.assertNotIn()
+        # New server replaced?
+        self.verify_group_state(self.groupid, 1)
