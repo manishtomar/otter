@@ -686,20 +686,19 @@ class PrivateJobHelperTestCase(SynchronousTestCase):
         """
         self.transaction_id = 'transaction_id'
         self.job_id = 'job_id'
-        self.log = mock.MagicMock()
-        self.group = iMock(IScalingGroup, tenant_id='tenant', uuid='group')
-        self.state = None
-        self.supervisor = iMock(ISupervisor)
-        self.completion_deferred = Deferred()
+        patch(self, 'otter.supervisor.generate_job_id', return_value=self.job_id)
 
-        self.supervisor.execute_config.return_value = succeed(
-            (self.job_id, self.completion_deferred))
+        #self.group = iMock(IScalingGroup, tenant_id='tenant', uuid='group')
+        self.state = GroupState('t', 'g', 'n', {}, {}, *range(3))
 
-        def fake_modify_state(f, *args, **kwargs):
-            return maybeDeferred(
-                f, self.group, self.state, *args, **kwargs)
+        self.supervisor = FakeSupervisor()
 
-        self.group.modify_state.side_effect = fake_modify_state
+        #def fake_modify_state(f, *args, **kwargs):
+        #    return maybeDeferred(
+        #        f, self.group, self.state, *args, **kwargs)
+
+        #self.group.modify_state.side_effect = fake_modify_state
+        self.group = mock_group(self.state)
 
         self.log = mock_log()
         self.job = supervisor._Job(self.log, self.transaction_id, self.group,
@@ -710,47 +709,49 @@ class PrivateJobHelperTestCase(SynchronousTestCase):
                             'args': {'server': {'imageRef': 'imageID',
                                                 'flavorRef': '1'}}}
 
-    def test_start_binds_image_and_flavor_refs_to_log(self):
+    def test_job_success_state_modified(self):
         """
-        `start` binds the image ID and flavor, if provided, to the logs
+        When job succeeds, its state is successfully modified
         """
-        self.job.job_started = mock.MagicMock()
+        d = self.job.start(self.mock_launch)
 
-        self.job.start(self.mock_launch)
+        # execute_config called?
+        self.assertEqual(
+            self.supervisor.exec_calls[0],
+            (matches(IsBoundWith(system='otter.job.launch', image_ref="imageID",
+                                 flavor_ref='1', job_id=self.job_id)),
+             'transaction-id', self.group, self.mock_launch))
 
-        self.job.log.msg('')
-        self.log.msg.assert_called_once_with('', system='otter.job.launch',
-                                             image_ref="imageID", flavor_ref='1')
+        self.assertNoResult(d)
 
-    def test_start_binds_invalid_image_ref_to_log(self):
+        self.state.add_job(self.job_id)
+        d.callback({'id': 's'})
+
+        self.successResultOf(d)
+
+        # Job is active
+        self.assertNotIn(self.job_id, self.state.pending)
+        self.assertIn('s', self.state.active)
+
+        # Audit log
+
+    def test_job_success_job_not_found(self):
         """
-        `start` binds the image ID to a string that says that we were unable
-        to find the image id in the logs, if the image ref could not be found
+        When job succeeds, its state is successfully modified
         """
-        self.job.job_started = mock.MagicMock()
+        pass
 
-        del self.mock_launch['args']['server']['imageRef']
-        self.job.start(self.mock_launch)
+    def test_job_success_group_not_found(self):
+        pass
 
-        self.job.log.msg('')
-        self.log.msg.assert_called_once_with('', system='otter.job.launch',
-                                             image_ref="Unable to pull image ref.",
-                                             flavor_ref='1')
+    def test_job_failed_state_modified(self):
+        pass
 
-    def test_start_binds_invalid_flavor_ref_to_log(self):
-        """
-        `start` binds the flavor ID to a string that says that we were unable
-        to find the flavor id in the logs, if the flavor ref could not be found
-        """
-        self.job.job_started = mock.MagicMock()
+    def test_job_failed_job_not_found(self):
+        pass
 
-        del self.mock_launch['args']['server']['flavorRef']
-        self.job.start(self.mock_launch)
-
-        self.job.log.msg('')
-        self.log.msg.assert_called_once_with('', system='otter.job.launch',
-                                             image_ref="imageID",
-                                             flavor_ref="Unable to pull flavor ref.")
+    def test_job_failed_group_not_found(self):
+        pass
 
     def test_start_calls_supervisor(self):
         """
@@ -999,6 +1000,38 @@ class PrivateJobHelperTestCase(SynchronousTestCase):
                                              system="otter.job.launch",
                                              image_ref="imageID", flavor_ref="1",
                                              job_id=self.job_id)
+
+    def test_start_binds_invalid_image_ref_to_log(self):
+        """
+        `start` binds the image ID to a string that says that we were unable
+        to find the image id in the logs, if the image ref could not be found
+        """
+        self.job.job_started = mock.MagicMock()
+
+        del self.mock_launch['args']['server']['imageRef']
+        self.job.start(self.mock_launch)
+
+        self.assertEqual(
+            self.job.log,
+            matches(IsBoundWith(system='otter.job.launch',
+                                image_ref="Unable to pull image ref.",
+                                flavor_ref='1', job_id=self.job_id)))
+
+    def test_start_binds_invalid_flavor_ref_to_log(self):
+        """
+        `start` binds the flavor ID to a string that says that we were unable
+        to find the flavor id in the logs, if the flavor ref could not be found
+        """
+        self.job.job_started = mock.MagicMock()
+
+        del self.mock_launch['args']['server']['flavorRef']
+        self.job.start(self.mock_launch)
+
+        self.assertEqual(
+            self.job.log,
+            matches(IsBoundWith(system='otter.job.launch', image_ref="imageID",
+                                flavor_ref="Unable to pull flavor ref.",
+                                job_id=self.job_id)))
 
 
 class RemoveServerTests(SynchronousTestCase):
