@@ -7,6 +7,8 @@ This code is specific to the launch_server_v1 worker.
 from twisted.application.service import Service
 from twisted.internet.defer import succeed
 
+from effect import Effect, FuncIntent
+
 from zope.interface import Interface, implementer
 
 from otter.models.interface import NoSuchScalingGroupError
@@ -93,7 +95,23 @@ class SupervisorService(object, Service):
 
         log.msg("Authenticating for tenant")
 
+        # TODO:
+        # While we're still switching everything to pure-http, we'll still
+        # do authentication ahead of time here, even though pure-http can
+        # auth on demand. Because tokens are cached this won't result in
+        # duplicate token retrieval.
+        # In the meantime we will pass the auth token *and* an auth function
+        # to the launch_server_v1 functions. Later we'll get rid of the
+        # auth token.
         d = self.auth_function(scaling_group.tenant_id, log=log)
+
+        def auth_func(refresh=False):
+            # TODO: In the future auth should ideally return an Effect. This
+            # will make unit testing nicer, since this intent should actually
+            # be a (transparent) Request, not a (rather opaque) FuncIntent.
+            return Effect(FuncIntent(lambda:
+                self.auth_function(scaling_group.tenant_id, log=log,
+                                   refresh=refresh)))
 
         def when_authenticated((auth_token, service_catalog)):
             log.msg("Executing launch config.")
@@ -103,7 +121,9 @@ class SupervisorService(object, Service):
                 scaling_group,
                 service_catalog,
                 auth_token,
-                launch_config['args'], undo)
+                launch_config['args'],
+                undo,
+                auth_func)
 
         d.addCallback(when_authenticated)
 

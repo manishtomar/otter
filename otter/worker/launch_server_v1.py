@@ -23,6 +23,8 @@ from copy import deepcopy
 import re
 from urllib import urlencode
 
+from effect.twisted import perform
+
 from twisted.python.failure import Failure
 from twisted.internet.defer import gatherResults, maybeDeferred, DeferredSemaphore
 
@@ -32,6 +34,7 @@ from otter.util.config import config_value
 from otter.util.http import (append_segments, headers, check_success,
                              wrap_request_error, raise_error_on_code,
                              APIError, RequestError)
+from otter.util.pure_http import request
 from otter.util.hashkey import generate_server_name
 from otter.util.deferredutils import retry_and_timeout, log_with_time
 from otter.util.retry import (retry, retry_times, repeating_interval,
@@ -172,7 +175,7 @@ class ServerCreationRetryError(Exception):
     """
 
 
-def find_server(server_endpoint, auth_token, server_config, log=None):
+def find_server(server_endpoint, auth_function, server_config, log=None):
     """
     Given a server config, attempts to find a server created with that config.
 
@@ -223,9 +226,9 @@ def find_server(server_endpoint, auth_token, server_config, log=None):
 
         return None
 
-    d = treq.get(url, headers=headers(auth_token), log=log)
-    d.addCallback(check_success, [200])
-    d.addCallback(treq.json_content)
+    eff = request('get', url, auth=auth_function, log=log,
+                  success_codes=[200])
+    d = perform(eff)
     d.addCallback(_check_if_server_exists)
     return d
 
@@ -240,8 +243,8 @@ class _NoCreatedServerFound(Exception):
         self.original = original_failure
 
 
-def create_server(server_endpoint, auth_token, server_config, log=None,
-                  clock=None, retries=3, _treq=None):
+def create_server(server_endpoint, auth_token, server_config, auth_function,
+                  log=None, clock=None, retries=3, _treq=None):
     """
     Create a new server.  If there is an error from Nova from this call,
     checks to see if the server was created anyway.  If not, will retry the
@@ -302,7 +305,7 @@ def create_server(server_endpoint, auth_token, server_config, log=None,
         if f.value.code == 400:
             return f
 
-        d = find_server(server_endpoint, auth_token, server_config, log=log)
+        d = find_server(server_endpoint, auth_function, server_config, log=log)
         d.addBoth(_check_results, f)
         return d
 
@@ -585,7 +588,7 @@ def prepare_launch_config(scaling_group_uuid, launch_config):
 
 
 def launch_server(log, region, scaling_group, service_catalog, auth_token,
-                  launch_config, undo, clock=None):
+                  launch_config, undo, auth_function, clock=None):
     """
     Launch a new server given the launch config auth tokens and service catalog.
     Possibly adding the newly launched server to a load balancer.
@@ -599,6 +602,7 @@ def launch_server(log, region, scaling_group, service_catalog, auth_token,
     :param dict launch_config: A launch_config args structure as defined for
         the launch_server_v1 type.
     :param IUndoStack undo: The stack that will be rewound if undo fails.
+    :param auth_function: auth function suitable for pure-http.
 
     :return: Deferred that fires with a 2-tuple of server details and the
         list of load balancer responses from add_to_load_balancers.
@@ -651,7 +655,8 @@ def launch_server(log, region, scaling_group, service_catalog, auth_token,
         return (server, [])
 
     def _create_server():
-        d = create_server(server_endpoint, auth_token, server_config, log=log)
+        d = create_server(server_endpoint, auth_token, server_config,
+                          auth_function, log=log)
         d.addCallback(wait_for_server)
         d.addCallback(add_lb)
         return d

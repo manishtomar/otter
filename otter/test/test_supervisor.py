@@ -3,6 +3,8 @@ Tests for the worker supervisor.
 """
 import mock
 
+from effect import perform
+
 from testtools.matchers import ContainsDict, Equals, IsInstance, KeysEqual
 
 from twisted.trial.unittest import SynchronousTestCase
@@ -165,7 +167,31 @@ class LaunchConfigTests(SupervisorTests):
             self.service_catalog,
             self.auth_token,
             {'server': {}},
-            self.undo)
+            self.undo,
+            mock.ANY)
+
+    def test_execute_config_passes_auth_function_to_launch_server(self):
+        """
+        execute_config passes an auth function to launch_server, which
+        conforms to pure-http's expectations.
+        """
+        d = self.supervisor.execute_config(self.log, 'transaction-id',
+                                           self.group, self.launch_config)
+        # The last argument is the auth function.
+        auth_function = self.launch_server.mock_calls[0][1][-1]
+        perform(auth_function())
+        perform(auth_function(refresh=True))
+
+        # The first call to the auth function should eventually go away
+        # once all of server-launching is moved to pure-http.
+        # In addition, probably all mocking should be removed when everything
+        # is moved to pure-http.
+        self.auth_function.assert_has_calls(
+            [mock.call(self.group.tenant_id, log=self.log.bind.return_value),
+             mock.call(self.group.tenant_id, log=self.log.bind.return_value,
+                       refresh=False),
+             mock.call(self.group.tenant_id, log=self.log.bind.return_value,
+                       refresh=True)])
 
     def test_execute_config_rewinds_undo_stack_on_failure(self):
         """
