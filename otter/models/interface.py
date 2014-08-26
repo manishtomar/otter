@@ -618,45 +618,126 @@ class IScalingGroup(Interface):
         """
 
 
+class NoSuchServerIntentError(Exception):
+    """
+    Error to be raised when attempting operations on a server intent that does not
+    exist.
+    """
+    def __init__(self, tenant_id, group_id, server_id):
+        super(NoSuchServerIntentError, self).__init__(
+            "No such server {s} in group {g} for tenant {t}"
+            .format(t=tenant_id, g=group_id, s=server_id))
+
+
+class IScalingGroupServerIntentsCollection(Interface):
+    """
+    Collection of servers intended to be there in a scaling group. Each server in the
+    this group should eventually match to a real server in Nova. All operations on this
+    model will not have any impact on real Nova servers. It is the caller's responsibility
+    to sync them (if needed).
+    """
+
+    def create_server_intent(log, status='pending'):
+        """
+        Create server intended to be there in scaling group
+
+        :param :class:`BoundLog` log: A bound logger
+        :param str status: status of the server. one of 'pending' or 'active'
+
+        :return: a :class:`twisted.internet.defer.Deferred` that fires with ``dict``
+                corresponding with :data:`otter.json_schema.model_schemas.server`
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        """
+
+    def update_server_intent(log, server_intent_id, nova_id, status, lb_info):
+        """
+        Update existing server intent information
+
+        :param :class:`BoundLog` log: A bound logger
+        :param str server_intent_id: ID of server intent
+        :param str nova_id: Server ID of corresponding Nova instance
+        :param str status: server status. One of 'pending' or 'active'
+        :param `dict` lb_info: Load balancer information dict. This will be stored as JSON
+
+        :return: a :class:`twisted.internet.defer.Deferred` that fires with None
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        :raises NoSuchServerIntentError: if the server intent id does not exist
+        """
+
+    def list_server_intents(log, status=None, limit=100, marker=None):
+        """
+        List the server intents in the scaling group optionally filtered based on status
+
+        :param :class:`BoundLog` log: A bound logger
+        :param str status: server status. One of 'pending' or 'active'
+        :param int limit: Limit number of server intents to return
+        :param str marker: Marker from which to fetch servers
+
+        :return: a :class:`twisted.internet.defer.Deferred` that fires with `list` of
+                server `dict` each corresponding with
+                :data:`otter.json_schema.model_schemas.server`
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        """
+
+    def get_server_intent(log, server_intent_id):
+        """
+        Get server intent from scaling group
+
+        :param :class:`BoundLog` log: A bound logger
+        :param str server_intent_id: ID of server intent being requested
+
+        :return: a :class:`twisted.internet.defer.Deferred` that fires with
+                 server `dict` correspondgin with
+                :data:`otter.json_schema.model_schemas.server`
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        :raises NoSuchServerIntentError: if the server intent id does not exist
+        """
+
+    def delete_server_intents(log, server_intent_ids):
+        """
+        Remove server intents from scaling group
+
+        :param :class:`BoundLog` log: A bound logger
+        :param list server_intent_ids: List of server intent IDs to be deleted
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        """
+
+
 class IScalingScheduleCollection(Interface):
     """
     A list of scaling events in the future
     """
-
     def fetch_and_delete(bucket, now, size=100):
         """
-        Fetch and delete and batch of scheduled events in a bucket
+        Fetch and delete a batch of scheduled events in a bucket.
 
-        :param bucket: bucket whose events to be fetched
-        :type param: :class:`int`
-
-        :param now: the current time
-        :type now: ``datetime``
-
-        :param size: the size of the request
-        :type size: :class:`int`
-
-        :return: Deferred that fires with list of dict representing a row
+        :param int bucket: Index of bucket from which to fetch events.
+        :param datetime now: The current time.
+        :param int size: The maximum number of events to fetch.
+        :return: Deferred that fires with a sequence of events.
+        :rtype: deferred :class:`list` of :class:`dict`
         """
 
     def add_cron_events(cron_events):
         """
-        Add cron events equally distributed among the buckets
+        Add cron events equally distributed among the buckets.
 
-        :param cron_events: list of events (dict) to be added
-        :type cron_events: :class:`list`
-
-        :return: None
+        :param cron_events: List of events to be added.
+        :type cron_events: :class:`list` of :class:`dict`
+        :return: :data:`None`
         """
 
     def get_oldest_event(bucket):
         """
-        Get oldest event from the bucket
+        Get the oldest event from a bucket.
 
-        :param bucket: oldest event from this bucket
-        :type param: :class:`int`
-
+        :param int bucket: Index of bucket from which to get the oldest event.
         :return: Deferred that fires with dict of oldest event
+        :rtype: :class:`dict`
         """
 
 
