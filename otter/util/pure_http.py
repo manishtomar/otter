@@ -1,5 +1,5 @@
 """
-Pure HTTP utilities.
+Purely functional HTTP client.
 """
 import json
 
@@ -46,40 +46,55 @@ def get_request(method, url, **kwargs):
     return Effect(Request(method=method, url=url, **kwargs))
 
 
-def request_with_auth(get_request, method, url, auth=None,
-                      headers=None, reauth_codes=(401, 403),
-                      **kwargs):
+def auth_request(get_request, method, url, get_auth_headers, headers=None,
+                 **kwargs):
     """
-    Create an authenticated request. If the request fails with an auth-related
-    error, a fresh token will be requested automatically.
+    Performs an authenticated request, calling a function to get auth headers.
 
-    The given 'auth' argument should be a function that returns an Effect of
-    authentication headers to add to the request. Before the request is made,
-    the auth function will be called with no arguments to get the auth token to
-    be used (which may be cached). If the application request fails with an
-    auth-related error, the auth function will be invoked again, with a
-    refresh=True argument. In this case, new authentication information should
-    be retrieved from the authentication service, if necessary.
-
-    If refreshing auth information returns successfully, the original response
-    will be returned. If it results in an error, that error will be
-    propagated.
+    :param get_auth_headers: A function that should return an Effect that
+        returns auth-related headers as a dict.
     """
-
-    def handle_reauth(result):
-        response, content = result
-        if response.code in reauth_codes:
-            return auth(refresh=True).on(success=lambda headers: result)
-        else:
-            return result
-
     def try_request(auth_headers):
         req_headers = {} if headers is None else headers
         req_headers = merge(req_headers, auth_headers)
         eff = get_request(method, url, headers=req_headers, **kwargs)
-        return eff.on(success=lambda r: handle_reauth(r))
+        return eff
+    return get_auth_headers().on(success=try_request)
 
-    return auth().on(success=try_request)
+
+def refresh_auth_on_error(reauth_codes, refresh_auth_info, result):
+    """
+    Refreshes an auth cache if an HTTP response is an auth-related error.
+
+    :param refresh_auth_info: A function that should return an Effect that
+        invalidates or clears out any cached auth information that
+        auth_request's get_auth_headers function returns.
+    :param tuple reauth_codes: integer HTTP codes which should cause a refresh.
+    """
+    response, content = result
+    if response.code in reauth_codes:
+        return refresh_auth_info().on(success=lambda ignored: result)
+    else:
+        return result
+
+
+def request_with_auth(get_request, method, url,
+                      get_auth_headers,
+                      refresh_auth_info,
+                      headers=None, reauth_codes=(401, 403),
+                      **kwargs):
+    """
+    Get a request that will perform book-keeping on cached auth info.
+
+    This composes the :func:`auth_request` and :func:`refresh_auth_on_error`
+    functions.
+
+    :param get_auth_headers: As per :func:`auth_request`
+    :param refresh_auth_info: As per :func:`refresh_auth_on_error`
+    :param reauth_codes: As per :func:`refresh_auth_on_error`.
+    """
+    eff = auth_request(get_request, method, url, get_auth_headers, headers=headers, **kwargs)
+    return eff.on(success=partial(refresh_auth_on_error, reauth_codes, refresh_auth_info))
 
 
 def status_check(success_codes, result):
@@ -120,10 +135,13 @@ _request = compose(content_request, _request)
 
 def request(method, url, *args, **kwargs):
     """
-    Make an HTTP request, with a number of conveniences:
+    Make an HTTP request, with a number of conveniences. Accepts the same
+    arguments as :class:`Request`, in addition to these:
 
-    :param success_codes: HTTP codes to accept as successful
+    :param tuple success_codes: integer HTTP codes to accept as successful
     :param data: python object, to be encoded with json
-    :param auth: a function to be used to retrieve auth tokens
+    :param get_auth_headers: a function to retrieve auth tokens
+    :param refresh_auth_info: a function to refresh the auth cache
+    :param tuple reauth_codes: integer HTTP codes upon which to reauthenticate
     """
     return _request(method, url, *args, **kwargs)

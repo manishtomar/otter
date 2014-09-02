@@ -25,10 +25,10 @@ class RequestEffectTests(SynchronousTestCase):
         The Request effect dispatches a request to treq, and returns a two-tuple
         of the Twisted Response object and the content as bytes.
         """
+        req = ('GET', 'http://google.com/', None, None,  {'log': None})
         response = StubResponse(200, {})
-        treq = StubTreq(
-            reqs={('GET', 'http://google.com/', None, None,  ('log',)): response},
-            contents={response: "content"})
+        treq = StubTreq(reqs=[(req, response)],
+                        contents=[(response, "content")])
         req = Request(method="get", url="http://google.com/")
         req.treq = treq
         self.assertEqual(
@@ -39,11 +39,11 @@ class RequestEffectTests(SynchronousTestCase):
         """
         The log specified in the Request is passed on to the treq implementation.
         """
-        response = StubResponse(200, {})
         log = object()
-        treq = StubTreq(
-            reqs={('GET', 'http://google.com/', None, None, ('log',)): response},
-            contents={response: "content"})
+        req = ('GET', 'http://google.com/', None, None, {'log': log})
+        response = StubResponse(200, {})
+        treq = StubTreq(reqs=[(req, response)],
+                        contents=[(response, "content")])
         req = Request(method="get", url="http://google.com/", log=log)
         req.treq = treq
         self.assertEqual(self.successResultOf(perform(Effect(req))),
@@ -54,10 +54,14 @@ class PureHTTPClientTests(TestCase):
     """Tests for the pure HTTP client functions."""
 
     def _no_reauth_client(self):
-        def auth(refresh=False):
-            assert not refresh
+        def auth():
             return Effect(Constant(headers("my-token")))
-        return lambda *args, **kwargs: resolve_stubs(request(*args, auth=auth, **kwargs))
+        return (
+            lambda *args, **kwargs:
+            resolve_stubs(request(*args,
+                                  get_auth_headers=auth,
+                                  refresh_auth_info=lambda: None,
+                                  **kwargs)))
 
     def test_json_request(self):
         """
@@ -149,28 +153,33 @@ class PureHTTPClientTests(TestCase):
         return self._test_reauth(500, reauth_codes=(401, 403, 500))
 
     def _test_reauth(self, code, reauth_codes=None):
-        reauth_effect = Effect(Constant(headers("new-token")))
+        reauth_effect = Effect(Constant(None))
 
-        def auth(refresh=False):
-            if refresh:
-                return reauth_effect
-            else:
-                return Effect(Constant(headers("first-token")))
+        def get_auth_headers():
+            return Effect(Constant(headers("first-token")))
+
+        def refresh_auth_info():
+            return reauth_effect
+
         # First we try to make a simple request.
         kwargs = {}
         if reauth_codes is not None:
             kwargs['reauth_codes'] = reauth_codes
-        eff = request("get", "/foo", auth=auth, **kwargs)
+        eff = request("get", "/foo",
+                      get_auth_headers=get_auth_headers,
+                      refresh_auth_info=refresh_auth_info,
+                      **kwargs)
 
-        # The initial (cached) token is retrieved.
+        # The initial (cached) auth headers are retrieved.
         eff = resolve_stubs(eff)
 
-        # Reauthentication is then triggered:
+        # when an authentication error is returned from the HTTP server,
+        # the auth info is automitacally refreshed:
         stub_result = stub_pure_response("badauth!", code=code)
         reauth_effect_result = resolve_effect(eff, stub_result)
         self.assertIs(reauth_effect_result.intent, reauth_effect.intent)
 
-        # And the original HTTP response (of whatever code) is returned.
+        # And the original auth error HTTP response is still returned.
         api_error = self.assertRaises(APIError, resolve_stubs, reauth_effect_result)
         self.assertEqual(api_error.code, code)
         self.assertEqual(api_error.body, "badauth!")
