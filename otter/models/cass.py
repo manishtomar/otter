@@ -680,44 +680,6 @@ class CassScalingGroup(object):
 
         return d.addCallback(_unmarshal_state)
 
-    def modify_state(self, modifier_callable, *args, **kwargs):
-        """
-        see :meth:`otter.models.interface.IScalingGroup.modify_state`
-        """
-        log = self.log.bind(system='CassScalingGroup.modify_state')
-        consistency = self.get_consistency('update', 'state')
-
-        @self.with_timestamp
-        def _write_state(timestamp, new_state):
-            assert (new_state.tenant_id == self.tenant_id and
-                    new_state.group_id == self.uuid)
-            params = {
-                'tenantId': new_state.tenant_id,
-                'groupId': new_state.group_id,
-                'active': serialize_json_data(new_state.active, 1),
-                'pending': serialize_json_data(new_state.pending, 1),
-                'paused': new_state.paused,
-                'desired': new_state.desired,
-                'groupTouched': new_state.group_touched,
-                'policyTouched': serialize_json_data(new_state.policy_touched, 1),
-                'ts': timestamp
-            }
-            return self.connection.execute(
-                _cql_insert_group_state.format(cf=self.group_table),
-                params, consistency)
-
-        def _modify_state():
-            d = self.view_state(consistency)
-            d.addCallback(lambda state: modifier_callable(self, state, *args, **kwargs))
-            return d.addCallback(_write_state)
-
-        lock = self.kz_client.Lock(LOCK_PATH + '/' + self.uuid)
-        lock.acquire = functools.partial(lock.acquire, timeout=120)
-        local_lock = self.local_locks.get_lock(self.uuid)
-        return local_lock.run(with_lock, self.reactor, lock, _modify_state,
-                              log.bind(category='locking'), acquire_timeout=150,
-                              release_timeout=30)
-
     def modify_desired(self, modifier_callable, *args, **kwargs):
         """
         see :meth:`otter.models.interface.IScalingGroup.modify_desired`
@@ -1273,6 +1235,332 @@ class CassScalingGroupServers(object):
     def delete_server(self, log, server_id):
         return self.delete_servers(log, [server_id])
 
+
+@implementer(IScalingGroupServerIntentsCollection)
+class CassScalingGroupServerIntentsCollection(object):
+
+    def __init__(self, scaling_group):
+        self.scaling_group = scaling_group
+        self.tenant_id = scaling_group.tenant_id
+        self.group_id = scaling_group.uuid
+        self.connection = scaling_group.connection
+        self.get_consistency_level = scaling_group.get_consistency
+        self.log = self.scaling_group.log.bind(system='CassScalingGroupServerIntents')
+
+        self.local_locks = WeakLocks()
+
+    def modify_state(self, log, modifier_callable, *args, **kwargs):
+        consistency = self.get_consistency('update', 'state')
+
+        @self.with_timestamp
+        def _write_state(timestamp, new_state):
+            assert (new_state.tenant_id == self.tenant_id and
+                    new_state.group_id == self.uuid)
+            params = {
+                'tenantId': new_state.tenant_id,
+                'groupId': new_state.group_id,
+                'active': serialize_json_data(new_state.active, 1),
+                'pending': serialize_json_data(new_state.pending, 1),
+                'paused': new_state.paused,
+                'desired': new_state.desired,
+                'groupTouched': new_state.group_touched,
+                'policyTouched': serialize_json_data(new_state.policy_touched, 1),
+                'ts': timestamp
+            }
+            return self.connection.execute(
+                _cql_insert_group_state.format(cf=self.group_table),
+                params, consistency)
+
+        def _modify_state():
+            d = self.view_state(consistency)
+            d.addCallback(lambda state: modifier_callable(self, state, *args, **kwargs))
+            return d.addCallback(_write_state)
+
+        local_lock = self.local_locks.get_lock(self.scaling_group.uuid)
+        return local_lock.run(_modify_state)
+
+    def create_server_intent(self, log, status='pending'):
+
+        if status != 'pending':
+            raise NotImplementedError
+
+        def create(state):
+            intent_id = str(uuid.uuid4())
+            state.add_job(intent_id)
+            return state
+
+        self.modify_state(log, create)
+
+    def update_server_intent(log, server_intent_id, nova_id, status, lb_info, with_lock=False):
+
+        def update(state):
+            if server_intent_id in state.pending:
+                if status == 'active':
+                    state.remove_job(server_intent_id)
+                    state.pending[server_intent_id][
+
+
+    def list_server_intents(log, status=None, limit=100, marker=None):
+        """
+        List the server intents in the scaling group optionally filtered based on status
+
+        :param :class:`BoundLog` log: A bound logger
+        :param str status: server status. One of 'pending' or 'active'
+        :param int limit: Limit number of server intents to return
+        :param str marker: Marker from which to fetch servers
+
+        :return: a :class:`twisted.internet.defer.Deferred` that fires with `list` of
+                server `dict` each corresponding with
+                :data:`otter.json_schema.model_schemas.server`
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        """
+
+    def get_server_intent(log, server_intent_id):
+        """
+        Get server intent from scaling group
+
+        :param :class:`BoundLog` log: A bound logger
+        :param str server_intent_id: ID of server intent being requested
+
+        :return: a :class:`twisted.internet.defer.Deferred` that fires with
+                 server `dict` correspondgin with
+                :data:`otter.json_schema.model_schemas.server`
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        :raises NoSuchServerIntentError: if the server intent id does not exist
+        """
+
+    def delete_server_intents(log, server_intent_ids):
+        """
+        Remove server intents from scaling group
+
+        :param :class:`BoundLog` log: A bound logger
+        :param list server_intent_ids: List of server intent IDs to be deleted
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        """
+
+
+class IScalingScheduleCollection(Interface):
+    """
+    A list of scaling events in the future
+    """
+    def fetch_and_delete(bucket, now, size=100):
+        """
+        Fetch and delete a batch of scheduled events in a bucket.
+
+        :param int bucket: Index of bucket from which to fetch events.
+        :param datetime now: The current time.
+        :param int size: The maximum number of events to fetch.
+        :return: Deferred that fires with a sequence of events.
+        :rtype: deferred :class:`list` of :class:`dict`
+        """
+
+    def add_cron_events(cron_events):
+        """
+        Add cron events equally distributed among the buckets.
+
+        :param cron_events: List of events to be added.
+        :type cron_events: :class:`list` of :class:`dict`
+        :return: :data:`None`
+        """
+
+    def get_oldest_event(bucket):
+        """
+        Get the oldest event from a bucket.
+
+        :param int bucket: Index of bucket from which to get the oldest event.
+        :return: Deferred that fires with dict of oldest event
+        :rtype: :class:`dict`
+        """
+
+
+class IScalingGroupCollection(Interface):
+    """
+    Collection of scaling groups
+    """
+    def create_scaling_group(log, tenant_id, config, launch, policies=None):
+        """
+        Create scaling group based on the tenant id, the configuration
+        paramaters, the launch config, and optional scaling policies.
+
+        Validation of the config, launch config, and policies should have
+        already happened by this point (whether they refer to real other
+        entities, that the config's ``maxEntities`` should be greater than or
+        equal to ``minEntities``, etc.).
+
+        On successful creation, of a scaling group, the minimum entities
+        parameter should immediately be enforced.  Therefore, if the minimum
+        is greater than zero, that number of entities should be created after
+        scaling group creation.
+
+        :param tenant_id: the tenant ID of the tenant the scaling group
+            belongs to
+        :type tenant_id: :class:`bytes`
+
+        :param config: scaling group configuration options in JSON format, as
+            specified by :data:`otter.json_schema.group_schemas.config`
+        :type data: :class:`dict`
+
+        :param launch: scaling group launch configuration options in JSON
+            format, as specified by
+            :data:`otter.json_schema.group_schemas.launch_config`
+        :type data: :class:`dict`
+
+        :param policies: list of scaling group policies, each one given as a
+            JSON blob as specified by
+            :data:`otter.json_schema.group_schemas.scaling_policy`
+        :type data: :class:`list` of :class:`dict`
+
+        :return: a dictionary corresponding to the JSON schema at
+            :data:`otter.json_schema.model_schemas.manifest`, except that
+            it also has the key `id`
+        :rtype: a :class:`twisted.internet.defer.Deferred` that fires with :class:`dict`
+        """
+
+    def list_scaling_group_states(log, tenant_id, limit=100, marker=None):
+        """
+        List the scaling groups states for this tenant ID
+
+        :param tenant_id: the tenant ID of the scaling group info to list
+        :type tenant_id: :class:`bytes`
+
+        :param int limit: the maximum number of scaling group states to return
+            (for pagination purposes)
+        :param bytes marker: the group ID of the last seen group (for
+            pagination purposes - page offsets)
+
+        :return: a list of scaling group states
+        :rtype: a :class:`twisted.internet.defer.Deferred` that fires with a
+            :class:`list` of :class:`GroupState`
+        """
+
+    def get_scaling_group(log, tenant_id, scaling_group_id):
+        """
+        Get a scaling group model
+
+        Will return a scaling group even if the ID doesn't exist,
+        but the scaling group will throw exceptions when you try to do things
+        with it.
+
+        :param tenant_id: the tenant ID of the scaling groups
+        :type tenant_id: :class:`bytes`
+
+        :return: scaling group model object
+        :rtype: :class:`IScalingGroup` provider (no
+            :class:`twisted.internet.defer.Deferred`)
+        """
+
+    def webhook_info_by_hash(log, capability_hash):
+        """
+        Fetch the tenant id, group id, and policy id for the webhook
+        with this particular capability URL hash.
+
+        :param capability_hash: the capability hash associated with a particular
+            scaling policy
+        :type capability_hash: :class:`bytes`
+
+        :return: a :class:`twisted.internet.defer.Deferred` that fires with
+            a 3-tuple of (tenant_id, group_id, policy_id).
+
+        :raises UnrecognizedCapabilityError: if the capability hash
+            does not match any non-deleted policy
+        """
+
+    def get_counts(log, tenant_id):
+        """
+        Returns total current count of policies, webhooks and groups in the
+        following format::
+
+            {
+                "groups": 100,
+                "policies": 100,
+                "webhooks": 100
+            }
+
+        :param tenant_id: the tenant ID of the scaling groups
+        :type tenant_id: :class:`bytes`
+
+        :return: a :class:`twisted.internet.defer.Deferred` containing current
+            count of tenants policies, webhooks and groups as :class:`dict`
+        """
+
+    def health_check():
+        """
+        Check if the collection is healthy, and additionally provides some
+        extra free-form health data.
+
+        :return: The health information in the form of a boolean and some
+            additional free-form health data (possibly empty).
+        :rtype: deferred :class:`tuple` of (:class:`bool`, :class:`dict`)
+        """
+
+
+class IScalingGroupServersCollection(Interface):
+    """
+    Collection of servers in a scaling group
+    """
+
+    def create_servers(log, num_servers, status='pending'):
+        """
+        Create servers in scaling group with given status
+
+        :param int num_servers: Number of servers to create
+        :return: a list of server dicts with `id`s in it
+        :rtype: a :class:`twisted.internet.defer.Deferred` that fires with ``list``
+        """
+
+    def create_server(log, status='pending'):
+        """
+        Create server in scaling group based on the tenant id and group id
+
+        :param str status: status of the server. one of 'pending' or 'active'
+
+        :return: a dictionary of server with `id` in it
+        :rtype: a :class:`twisted.internet.defer.Deferred` that fires with ``dict``
+        """
+
+    def update_server(log, server_id, nova_id, status, lb_info):
+        """
+        Update existing server information
+        TODO: Should it take dict returned from create_server as arg instead?
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        :raises NoSuchServerError: if the server id does not exist
+        """
+
+    def list_servers(log, status=None, limit=100, marker=None):
+        """
+        List the servers in a scaling group optionally filtered based on status
+        """
+
+    def get_server(log, server_id):
+        """
+        Get server from scaling group
+        """
+
+    def get_server_on_nova_id(log, nova_id):
+        """
+        Get server from scaling group based on its nova id
+        """
+
+    def delete_server(log, server_id):
+        """
+        Remove single server from scaling group
+
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        :raises NoSuchServerError: if the server id does not exist
+        """
+
+    def delete_servers(log, server_ids):
+        """
+        Remove servers from scaling group
+
+        :param list server_ids: List of server IDs to be deleted
+        :raises NoSuchScalingGroupError: if this scaling group does not exist
+        TODO: What about `NoSuchServerError`?
+        """
 
 @implementer(IScalingGroupCollection, IScalingScheduleCollection)
 class CassScalingGroupCollection:
