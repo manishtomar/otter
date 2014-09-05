@@ -814,11 +814,12 @@ class ServerTests(SynchronousTestCase):
         filtering on the image id, flavor id, and exact name in the server
         config.
         """
-        self.treq.get.return_value = succeed(mock.Mock(code=200))
-        self.treq.json_content.return_value = succeed({"servers": []})
+        self.treq.request.return_value = succeed(mock.Mock(code=200))
+        self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
-        find_server(self._get_request_func(),
-                    'http://url/', _get_server_info())
+        d = find_server(self._get_request_func(),
+                        'http://url/', _get_server_info())
+        self.successResultOf(d)
 
         url = urlunsplit([
             'http', 'url', 'servers/detail',
@@ -836,8 +837,8 @@ class ServerTests(SynchronousTestCase):
         server_config = _get_server_info()
         server_config['name'] = r"this.is[]regex\dangerous()*"
 
-        self.treq.get.return_value = succeed(mock.Mock(code=200))
-        self.treq.json_content.return_value = succeed({"servers": []})
+        self.treq.request.return_value = succeed(mock.Mock(code=200))
+        self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
         find_server(self._get_request_func(),
                     'http://url/', server_config)
