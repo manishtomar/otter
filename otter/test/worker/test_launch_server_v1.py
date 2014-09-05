@@ -800,7 +800,8 @@ class ServerTests(SynchronousTestCase):
         self.treq.get.return_value = succeed(mock.Mock(code=200))
         self.treq.json_content.return_value = succeed({"servers": []})
 
-        find_server('http://url/', 'my-auth-token', _get_server_info())
+        find_server(lambda: None, # XXX radix,
+                    'http://url/', _get_server_info())
 
         url = urlunsplit([
             'http', 'url', 'servers/detail',
@@ -821,7 +822,8 @@ class ServerTests(SynchronousTestCase):
         self.treq.get.return_value = succeed(mock.Mock(code=200))
         self.treq.json_content.return_value = succeed({"servers": []})
 
-        find_server('http://url/', 'my-auth-token', server_config)
+        find_server(lambda: None, # XXX radix,
+                    'http://url/', server_config)
 
         url = urlunsplit([
             'http', 'url', 'servers/detail',
@@ -839,7 +841,8 @@ class ServerTests(SynchronousTestCase):
         self.treq.get.return_value = succeed(mock.Mock(code=500))
         self.treq.content.return_value = succeed(error_body)
 
-        d = find_server('http://url/', 'my-auth-token', _get_server_info())
+        d = find_server(lambda: None, # XXX radix,
+                        'http://url/', _get_server_info())
         failure = self.failureResultOf(d, APIError)
         self.assertEqual(failure.value.code, 500)
 
@@ -851,7 +854,8 @@ class ServerTests(SynchronousTestCase):
         self.treq.get.return_value = succeed(mock.Mock(code=200))
         self.treq.json_content.return_value = succeed({"servers": []})
 
-        d = find_server('http://url/', 'my-auth-token', _get_server_info())
+        d = find_server(lambda: None, # XXX radix,
+                        'http://url/', _get_server_info())
         self.assertIsNone(self.successResultOf(d))
 
     def test_find_server_raises_if_server_from_nova_has_wrong_metadata(self):
@@ -864,7 +868,8 @@ class ServerTests(SynchronousTestCase):
             'servers': [_get_server_info(metadata={'hello': 'there'})]
         })
 
-        d = find_server('http://url/', 'my-auth-token', _get_server_info())
+        d = find_server(lambda: None, # XXX radix
+                        'http://url/', _get_server_info())
         self.failureResultOf(d, ServerCreationRetryError)
 
     def test_find_server_returns_match_from_nova(self):
@@ -876,7 +881,8 @@ class ServerTests(SynchronousTestCase):
         self.treq.json_content.return_value = succeed(
             {'servers': [_get_server_info(metadata={'hey': 'there'})]})
 
-        d = find_server('http://url/', 'my-auth-token',
+        d = find_server(lambda: None, # XXX radix
+                        'http://url/',
                         _get_server_info(metadata={'hey': 'there'}))
 
         self.assertEqual(
@@ -896,7 +902,8 @@ class ServerTests(SynchronousTestCase):
         self.treq.get.return_value = succeed(mock.Mock(code=200))
         self.treq.json_content.return_value = succeed({'servers': servers})
 
-        d = find_server('http://url/', 'my-auth-token', _get_server_info(),
+        d = find_server(lambda: None, # XXX radix
+                        'http://url/', _get_server_info(),
                         self.log)
 
         self.failureResultOf(d, ServerCreationRetryError)
@@ -915,7 +922,8 @@ class ServerTests(SynchronousTestCase):
 
         _treq = StubTreq([(req, resp)], [(resp, '{"server": "created"}')])
 
-        d = create_server('http://url/', 'my-auth-token', {'some': 'stuff'},
+        d = create_server(lambda: None, # XXX radix,
+                          'http://url/', 'my-auth-token', {'some': 'stuff'},
                           _treq=_treq)
 
         result = self.successResultOf(d)
@@ -936,7 +944,8 @@ class ServerTests(SynchronousTestCase):
             'flavorRef': '3'
         }
 
-        ret_ds = [create_server('http://url/', 'my-auth-token', server_config)
+        ret_ds = [create_server(lambda: None, # XXX radix
+                                'http://url/', 'my-auth-token', server_config)
                   for i in range(3)]
 
         # no result in any of them and only first 2 treq.post is called
@@ -971,7 +980,8 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = fail(APIError(401, '', {}))
 
-        d = create_server('http://url/', 'my-auth-token', {}, log=self.log,
+        d = create_server(lambda: None, # XXX radix,
+                          'http://url/', 'my-auth-token', {}, log=self.log,
                           retries=0, _treq=_treq, clock=clock,
                           create_failure_delay=5)
         clock.advance(5)
@@ -1001,7 +1011,8 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = succeed("I'm a server!")
 
-        d = create_server('http://url/', 'my-auth-token', {'some': 'stuff'},
+        d = create_server(lambda: None, # XXX radix,
+                          'http://url/', 'my-auth-token', {'some': 'stuff'},
                           _treq=_treq, create_failure_delay=5, clock=clock)
         self.assertNoResult(d)
 
@@ -1027,7 +1038,8 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = succeed(None)
 
-        d = create_server('http://url/', 'my-auth-token', {}, log=self.log,
+        d = create_server(lambda: None, # XXX radix,
+                          'http://url/', 'my-auth-token', {}, log=self.log,
                           retries=0, _treq=_treq, clock=clock,
                           create_failure_delay=5)
         self.assertNoResult(d)
@@ -1060,7 +1072,8 @@ class ServerTests(SynchronousTestCase):
         fs.side_effect = lambda *a, **kw: succeed(None)
 
         clock = Clock()
-        d = create_server('http://url/', 'my-auth-token', {}, log=self.log,
+        d = create_server(lambda: None, # XXX radix,
+                          'http://url/', 'my-auth-token', {}, log=self.log,
                           clock=clock, _treq=_treq, create_failure_delay=5)
         clock.advance(5)
 
@@ -1085,7 +1098,8 @@ class ServerTests(SynchronousTestCase):
         _treq = StubTreq([(req, resp)], [(resp, "User error!")])
 
         clock = Clock()
-        d = create_server('http://url/', 'my-auth-token', {}, log=self.log,
+        d = create_server(lambda: None, # XXX radix,
+                          'http://url/', 'my-auth-token', {}, log=self.log,
                           clock=clock, _treq=_treq)
         clock.advance(15)
 
@@ -1352,7 +1366,8 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo)
+                          self.undo,
+                          lambda: None) # XXX radix
 
         result = self.successResultOf(d)
         self.assertEqual(
@@ -1406,7 +1421,8 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo)
+                          self.undo,
+                          lambda: None) # XXX radix
 
         result = self.successResultOf(d)
         self.assertEqual(result, (server_details, []))
@@ -1430,7 +1446,8 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           {'server': {}},
-                          self.undo)
+                          self.undo,
+                          lambda: None) # XXX radix
 
         failure = self.failureResultOf(d)
         failure.trap(RequestError)
@@ -1468,7 +1485,8 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo)
+                          self.undo,
+                          lambda: None) # XXX radix
 
         failure = self.failureResultOf(d)
         failure.trap(RequestError)
@@ -1510,7 +1528,8 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo)
+                          self.undo,
+                          lambda: None) # XXX radix
 
         failure = self.failureResultOf(d)
         failure.trap(RequestError)
@@ -1556,7 +1575,8 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo)
+                          self.undo,
+                          lambda: None) # XXX radix
 
         # Check that the push hasn't happened because create_server hasn't
         # succeeded yet.
@@ -1591,7 +1611,8 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo)
+                          self.undo,
+                          lambda: None) # XXX radix
 
         self.failureResultOf(d, APIError)
 
@@ -1633,7 +1654,9 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo, clock=clock)
+                          self.undo,
+                          lambda: None, # XXX radix
+                          clock=clock)
 
         # No result, create_server and wait_for_active called once, server deletion
         # was started and it wasn't added to clb
@@ -1707,7 +1730,9 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo, clock=clock)
+                          self.undo,
+                          lambda: None, # XXX radix
+                          clock=clock)
 
         self.failureResultOf(d, UnexpectedServerStatus)
         self.assertEqual(mock_cs.call_count, 1)
@@ -1749,7 +1774,9 @@ class ServerTests(SynchronousTestCase):
                           fake_service_catalog,
                           'my-auth-token',
                           launch_config,
-                          self.undo, clock=clock)
+                          self.undo,
+                          lambda: None, # XXX radix
+                          clock=clock)
 
         clock.pump([15] * 3)
         self.failureResultOf(d, UnexpectedServerStatus)

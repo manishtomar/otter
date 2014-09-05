@@ -176,7 +176,7 @@ class ServerCreationRetryError(Exception):
     """
 
 
-def find_server(server_endpoint, auth_function, server_config, log=None):
+def find_server(request, server_endpoint, server_config, log=None):
     """
     Given a server config, attempts to find a server created with that config.
 
@@ -184,8 +184,8 @@ def find_server(server_endpoint, auth_function, server_config, log=None):
     does not have the exact server name (the filter is a regex, so can filter
     by ``^<name>$``), image ID, and flavor ID (both of which are exact filters).
 
+    :param request: Function for performing HTTP requests.
     :param str server_endpoint: Server endpoint URI.
-    :param str auth_token: Keystone Auth Token.
     :param dict server_config: Nova server config.
     :param log: A bound logger
 
@@ -227,8 +227,7 @@ def find_server(server_endpoint, auth_function, server_config, log=None):
 
         return None
 
-    eff = request('get', url, auth=auth_function, log=log,
-                  success_codes=[200])
+    eff = request('get', url, log=log, success_codes=[200])
     d = perform(eff)
     d.addCallback(_check_if_server_exists)
     return d
@@ -244,7 +243,7 @@ class _NoCreatedServerFound(Exception):
         self.original = original_failure
 
 
-def create_server(server_endpoint, auth_token, server_config, auth_function,
+def create_server(request, server_endpoint, auth_token, server_config,
                   log=None, clock=None, retries=3, create_failure_delay=5,
                   _treq=None):
     """
@@ -258,6 +257,7 @@ def create_server(server_endpoint, auth_token, server_config, auth_function,
     If checking to see if the server is created also results in a failure,
     does not retry because there might just be something wrong with Nova.
 
+    :param request: A function for performing HTTP requests.
     :param str server_endpoint: Server endpoint URI.
     :param str auth_token: Keystone Auth Token.
     :param dict server_config: Nova server config.
@@ -315,7 +315,7 @@ def create_server(server_endpoint, auth_token, server_config, auth_function,
             return f
 
         d = deferLater(clock, create_failure_delay, find_server,
-                       server_endpoint, auth_function, server_config, log=log)
+                       request, server_endpoint, server_config, log=log)
         d.addBoth(_check_results, f)
         return d
 
@@ -598,7 +598,7 @@ def prepare_launch_config(scaling_group_uuid, launch_config):
 
 
 def launch_server(log, region, scaling_group, service_catalog, auth_token,
-                  launch_config, undo, auth_function, clock=None):
+                  launch_config, undo, request, clock=None):
     """
     Launch a new server given the launch config auth tokens and service catalog.
     Possibly adding the newly launched server to a load balancer.
@@ -612,7 +612,7 @@ def launch_server(log, region, scaling_group, service_catalog, auth_token,
     :param dict launch_config: A launch_config args structure as defined for
         the launch_server_v1 type.
     :param IUndoStack undo: The stack that will be rewound if undo fails.
-    :param auth_function: auth function suitable for pure-http.
+    :param request: A function for performing HTTP requests.
 
     :return: Deferred that fires with a 2-tuple of server details and the
         list of load balancer responses from add_to_load_balancers.
@@ -665,8 +665,8 @@ def launch_server(log, region, scaling_group, service_catalog, auth_token,
         return (server, [])
 
     def _create_server():
-        d = create_server(server_endpoint, auth_token, server_config,
-                          auth_function, log=log)
+        d = create_server(request, server_endpoint, auth_token, server_config,
+                          log=log)
         d.addCallback(wait_for_server)
         d.addCallback(add_lb)
         return d

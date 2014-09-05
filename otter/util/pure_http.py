@@ -20,7 +20,7 @@ from otter.util.http import APIError
             defaults={'headers': None, 'data': None, 'log': None})
 class Request(object):
     """
-    An effect request for performing HTTP requests.
+    An Effect intent for representing HTTP requests.
 
     The effect results in a two-tuple of (response, content).
     """
@@ -45,6 +45,16 @@ def get_request(method, url, **kwargs):
     """Return a Request wrapped in an Effect."""
     return Effect(Request(method=method, url=url, **kwargs))
 
+# json_request COULD exist and be Request -> Request
+# auth_request COULD be Request, get_auth_headers -> Effect
+# request_with_auth COULD be
+#   Effect, refresh_auth_info, reauth_codes -> Effect
+# request_with_status_check COULD be Effect, success_codes -> Effect
+# json_response COULD exist and be Effect -> Effect
+
+# considerations: change_obj(obj, attr=new, otherattr=new2)
+# a func Request -> Effect may be inconvenient if you already have an
+# Effect[Request] with callbacks attached.
 
 def auth_request(get_request, method, url, get_auth_headers, headers=None,
                  **kwargs):

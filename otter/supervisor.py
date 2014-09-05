@@ -16,6 +16,9 @@ from otter.log import audit
 from otter.util.deferredutils import DeferredPool
 from otter.util.hashkey import generate_job_id
 from otter.util.timestamp import from_timestamp
+from otter.util.pure_http import (
+    get_request, request_with_auth, request_with_status_check,
+    request_with_json, content_request)
 from otter.worker import launch_server_v1, validate_config
 from otter.undo import InMemoryUndoStack
 
@@ -32,9 +35,8 @@ class ISupervisor(Interface):
 
         :param log: Bound logger.
         :param str transaction_id: Transaction ID.
-        :param callable auth_function: A 1-argument callable that takes a tenant_id,
-            and returns a Deferred that fires with a 2-tuple of auth_token and
-            service_catalog.
+        :param ICachingAuthenticator authenticator: The authenticator used
+            to retrieve tokens for API requests.
         :param IScalingGroup scaling_group: Scaling Group.
         :param dict launch_config: The launch config for the scaling group.
 
@@ -65,8 +67,13 @@ class SupervisorService(object, Service):
     """
     A service which manages execution of launch configurations.
 
-    :ivar callable auth_function: authentication function to use to obtain an
-        auth token and service catalog.  Should accept a tenant ID.
+    :ivar ICachingAuthenticator authenticator: The authenticator used to
+        retrieve tokens for API requests.
+
+    :ivar request: The request function. Should not have any
+        authentication-related functionality; it will be decorated with
+        an authentication wrapper before being passed on to the
+        launch_server_v1 code.
 
     :ivar callable coiterate: coiterate function that will be passed to
         InMemoryUndoStack.
@@ -76,11 +83,40 @@ class SupervisorService(object, Service):
     """
     name = "supervisor"
 
-    def __init__(self, auth_function, region, coiterate):
-        self.auth_function = auth_function
+    def __init__(self, authenticator, region, coiterate):
+        self.authenticator = authenticator
         self.region = region
         self.coiterate = coiterate
         self.deferred_pool = DeferredPool()
+
+    def _get_request_func(self, tenant_id, log):
+        """
+        Return a request function adorned with:
+
+        - authentication for Rackspace APIs
+        - HTTP status code checking
+        - JSON bodies and return values
+        - returning only content of the result, not response objects.
+
+        Integration point!
+        """
+        def auth():
+            return self.authenticator.authenticate_tenant(tenant_id, log=log)
+        auth_headers = Effect(FuncIntent(lambda: headers(auth())))
+
+        invalidate = Effect(FuncIntent(
+            lambda: self.authenticator.invalidate(tenant_id)))
+
+        request = partial(
+            request_with_auth,
+            get_request,
+            get_auth_headers=lambda: auth_headers,
+            refresh_auth_info=lambda: invalidate,
+            )
+        request = partial(request_with_status_check, request)
+        request = partial(request_with_json, request)
+        request = compose(content_request, request)
+        return request
 
     def execute_config(self, log, transaction_id, scaling_group, launch_config):
         """
@@ -100,18 +136,8 @@ class SupervisorService(object, Service):
         # do authentication ahead of time here, even though pure-http can
         # auth on demand. Because tokens are cached this won't result in
         # duplicate token retrieval.
-        # In the meantime we will pass the auth token *and* an auth function
-        # to the launch_server_v1 functions. Later we'll get rid of the
-        # auth token.
-        d = self.auth_function(scaling_group.tenant_id, log=log)
-
-        def auth_func(refresh=False):
-            # TODO: In the future auth should ideally return an Effect. This
-            # will make unit testing nicer, since this intent should actually
-            # be a (transparent) Request, not a (rather opaque) FuncIntent.
-            return Effect(FuncIntent(lambda:
-                self.auth_function(scaling_group.tenant_id, log=log,
-                                   refresh=refresh)))
+        d = self.authenticator.authenticate_tenant(
+            scaling_group.tenant_id, log=log)
 
         def when_authenticated((auth_token, service_catalog)):
             log.msg("Executing launch config.")
@@ -123,7 +149,7 @@ class SupervisorService(object, Service):
                 auth_token,
                 launch_config['args'],
                 undo,
-                auth_func)
+                self._get_request_func(scaling_group.tenant_id, log))
 
         d.addCallback(when_authenticated)
 
@@ -167,7 +193,8 @@ class SupervisorService(object, Service):
                 auth_token,
                 (server['id'], server['lb_info']))
 
-        d = self.auth_function(scaling_group.tenant_id, log=log)
+        d = self.authenticator.authenticate_tenant(
+            scaling_group.tenant_id, log=log)
         log.msg("Authenticating for tenant")
         d.addCallback(when_authenticated)
 
@@ -191,7 +218,7 @@ class SupervisorService(object, Service):
 
         log = log.bind(system='otter.supervisor.validate_launch_config',
                        tenant_id=tenant_id)
-        d = self.auth_function(tenant_id, log=log)
+        d = self.authenticator.authenticate_tenant(tenant_id, log=log)
         log.msg('Authenticating for tenant')
         return d.addCallback(when_authenticated)
 
