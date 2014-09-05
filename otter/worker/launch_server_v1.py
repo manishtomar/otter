@@ -228,8 +228,8 @@ def find_server(request, server_endpoint, server_config, log=None):
         return None
 
     eff = request('get', url, log=log, success_codes=[200])
+    eff = eff.on(success=_check_if_server_exists)
     d = perform(eff)
-    d.addCallback(_check_if_server_exists)
     return d
 
 

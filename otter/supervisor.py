@@ -4,6 +4,8 @@ The Otter Supervisor manages a number of workers to execute a launch config.
 This code is specific to the launch_server_v1 worker.
 """
 
+from toolz.functoolz import compose
+
 from twisted.application.service import Service
 from twisted.internet.defer import succeed
 
@@ -89,35 +91,6 @@ class SupervisorService(object, Service):
         self.coiterate = coiterate
         self.deferred_pool = DeferredPool()
 
-    def _get_request_func(self, tenant_id, log):
-        """
-        Return a request function adorned with:
-
-        - authentication for Rackspace APIs
-        - HTTP status code checking
-        - JSON bodies and return values
-        - returning only content of the result, not response objects.
-
-        Integration point!
-        """
-        def auth():
-            return self.authenticator.authenticate_tenant(tenant_id, log=log)
-        auth_headers = Effect(FuncIntent(lambda: headers(auth())))
-
-        invalidate = Effect(FuncIntent(
-            lambda: self.authenticator.invalidate(tenant_id)))
-
-        request = partial(
-            request_with_auth,
-            get_request,
-            get_auth_headers=lambda: auth_headers,
-            refresh_auth_info=lambda: invalidate,
-            )
-        request = partial(request_with_status_check, request)
-        request = partial(request_with_json, request)
-        request = compose(content_request, request)
-        return request
-
     def execute_config(self, log, transaction_id, scaling_group, launch_config):
         """
         see :meth:`ISupervisor.execute_config`
@@ -149,7 +122,7 @@ class SupervisorService(object, Service):
                 auth_token,
                 launch_config['args'],
                 undo,
-                self._get_request_func(scaling_group.tenant_id, log))
+                _get_request_func(scaling_group.tenant_id, log))
 
         d.addCallback(when_authenticated)
 
@@ -236,6 +209,36 @@ class SupervisorService(object, Service):
         currently running.
         """
         return True, {'jobs': len(self.deferred_pool)}
+
+
+def _get_request_func(authenticator, tenant_id, log):
+    """
+    Return a request function adorned with:
+
+    - authentication for Rackspace APIs
+    - HTTP status code checking
+    - JSON bodies and return values
+    - returning only content of the result, not response objects.
+
+    Integration point!
+    """
+    def auth():
+        return authenticator.authenticate_tenant(tenant_id, log=log)
+    auth_headers = Effect(FuncIntent(lambda: headers(auth())))
+
+    invalidate = Effect(FuncIntent(
+        lambda: authenticator.invalidate(tenant_id)))
+
+    request = partial(
+        request_with_auth,
+        get_request,
+        get_auth_headers=lambda: auth_headers,
+        refresh_auth_info=lambda: invalidate,
+        )
+    request = partial(request_with_status_check, request)
+    request = partial(request_with_json, request)
+    request = compose(content_request, request)
+    return request
 
 
 _supervisor = None
