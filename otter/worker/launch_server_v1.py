@@ -232,7 +232,9 @@ def find_server_effect(request, server_endpoint, server_config, log=None):
     return eff
 
 
-find_server = lambda *args, **kwargs: perform(find_server_effect(*args, **kwargs))
+def find_server(*args, **kwargs):
+    """Performs the effect returned from :func:`find_server_effect`."""
+    return perform(find_server_effect(*args, **kwargs))
 
 
 class _NoCreatedServerFound(Exception):

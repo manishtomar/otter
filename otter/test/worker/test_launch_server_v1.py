@@ -2198,8 +2198,8 @@ class DeleteServerTests(SynchronousTestCase):
         self.assertEqual(delete_and_verify.call_count, 3)
 
 
-class FindServerTests(SynchronousTestCase):
-    """Tests for :func:`find_server`."""
+class FindServerEffectTests(SynchronousTestCase):
+    """Tests for :func:`find_server_effect`."""
 
     def test_find_server_tells_nova_to_filter_by_image_flavor_and_name(self):
         """
@@ -2297,10 +2297,7 @@ class FindServerTests(SynchronousTestCase):
             _get_server_info(created='2014-04-04T04:04:04Z'),
             _get_server_info(created='2014-04-04T04:04:05Z'),
         ]
-
         response = stub_pure_response({'servers': servers}, 200)
-
         eff = find_server_effect(_get_request_func(),
                                  'http://url/', _get_server_info())
-
         self.assertRaises(ServerCreationRetryError, resolve_effect, eff, response)
