@@ -922,7 +922,7 @@ class ServerTests(SynchronousTestCase):
 
         _treq = StubTreq([(req, resp)], [(resp, '{"server": "created"}')])
 
-        d = create_server(lambda: None, # XXX radix,
+        d = create_server(lambda: None, # Unused
                           'http://url/', 'my-auth-token', {'some': 'stuff'},
                           _treq=_treq)
 
@@ -944,7 +944,7 @@ class ServerTests(SynchronousTestCase):
             'flavorRef': '3'
         }
 
-        ret_ds = [create_server(lambda: None, # XXX radix
+        ret_ds = [create_server(lambda: None, # Unused
                                 'http://url/', 'my-auth-token', server_config)
                   for i in range(3)]
 
@@ -980,7 +980,7 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = fail(APIError(401, '', {}))
 
-        d = create_server(lambda: None, # XXX radix,
+        d = create_server(lambda: None, # Unused
                           'http://url/', 'my-auth-token', {}, log=self.log,
                           retries=0, _treq=_treq, clock=clock,
                           create_failure_delay=5)
@@ -1011,7 +1011,7 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = succeed("I'm a server!")
 
-        d = create_server(lambda: None, # XXX radix,
+        d = create_server(lambda: None, # Unused
                           'http://url/', 'my-auth-token', {'some': 'stuff'},
                           _treq=_treq, create_failure_delay=5, clock=clock)
         self.assertNoResult(d)
@@ -1072,7 +1072,7 @@ class ServerTests(SynchronousTestCase):
         fs.side_effect = lambda *a, **kw: succeed(None)
 
         clock = Clock()
-        d = create_server(lambda: None, # XXX radix,
+        d = create_server(lambda: None, # Unused
                           'http://url/', 'my-auth-token', {}, log=self.log,
                           clock=clock, _treq=_treq, create_failure_delay=5)
         clock.advance(5)
@@ -1098,7 +1098,7 @@ class ServerTests(SynchronousTestCase):
         _treq = StubTreq([(req, resp)], [(resp, "User error!")])
 
         clock = Clock()
-        d = create_server(lambda: None, # XXX radix,
+        d = create_server(lambda: None, # Unused
                           'http://url/', 'my-auth-token', {}, log=self.log,
                           clock=clock, _treq=_treq)
         clock.advance(15)
@@ -1422,7 +1422,8 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None) # XXX radix
+                          lambda: None, # Unused
+                          )
 
         result = self.successResultOf(d)
         self.assertEqual(result, (server_details, []))
@@ -1447,7 +1448,8 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           {'server': {}},
                           self.undo,
-                          lambda: None) # XXX radix
+                          lambda: None, # Unused
+                          )
 
         failure = self.failureResultOf(d)
         failure.trap(RequestError)
@@ -1486,7 +1488,8 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None) # XXX radix
+                          lambda: None, # Unused
+                          )
 
         failure = self.failureResultOf(d)
         failure.trap(RequestError)
@@ -1529,7 +1532,8 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None) # XXX radix
+                          lambda: None, # Unused
+                          )
 
         failure = self.failureResultOf(d)
         failure.trap(RequestError)
@@ -1576,7 +1580,8 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None) # XXX radix
+                          lambda: None, # Unused
+                          )
 
         # Check that the push hasn't happened because create_server hasn't
         # succeeded yet.
@@ -1612,7 +1617,8 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None) # XXX radix
+                          lambda: None, # Unused
+                          )
 
         self.failureResultOf(d, APIError)
 
@@ -1655,7 +1661,7 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None, # XXX radix
+                          lambda: None, # Unused
                           clock=clock)
 
         # No result, create_server and wait_for_active called once, server deletion
@@ -1731,7 +1737,7 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None, # XXX radix
+                          lambda: None, # Unused
                           clock=clock)
 
         self.failureResultOf(d, UnexpectedServerStatus)
@@ -1775,7 +1781,7 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None, # XXX radix
+                          lambda: None, # Unused
                           clock=clock)
 
         clock.pump([15] * 3)
