@@ -4,6 +4,8 @@ The Otter Supervisor manages a number of workers to execute a launch config.
 This code is specific to the launch_server_v1 worker.
 """
 
+from functools import partial
+
 from toolz.functoolz import compose
 
 from twisted.application.service import Service
@@ -122,7 +124,7 @@ class SupervisorService(object, Service):
                 auth_token,
                 launch_config['args'],
                 undo,
-                _get_request_func(scaling_group.tenant_id, log))
+                _get_request_func(self.authenticator, scaling_group.tenant_id, log))
 
         d.addCallback(when_authenticated)
 
