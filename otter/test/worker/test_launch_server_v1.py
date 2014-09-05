@@ -1055,7 +1055,9 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = succeed(None)
 
-        d = create_server(lambda: None, # XXX radix,
+        request = self._get_request_func()
+
+        d = create_server(request,
                           'http://url/', 'my-auth-token', {}, log=self.log,
                           retries=0, _treq=_treq, clock=clock,
                           create_failure_delay=5)
@@ -1069,7 +1071,7 @@ class ServerTests(SynchronousTestCase):
         self.assertEqual(real_failure.value.code, 500)
 
         self.assertEqual(fs.mock_calls,
-                         [mock.call('http://url/', 'my-auth-token', {},
+                         [mock.call(request, 'http://url/', {},
                                     log=self.log)])
 
     @mock.patch('otter.worker.launch_server_v1.find_server')
@@ -1377,6 +1379,7 @@ class ServerTests(SynchronousTestCase):
         ])
 
         log = mock.Mock()
+        request = self._get_request_func()
         d = launch_server(log,
                           'DFW',
                           self.scaling_group,
@@ -1384,7 +1387,7 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          lambda: None) # XXX radix
+                          request)
 
         result = self.successResultOf(d)
         self.assertEqual(
@@ -1393,7 +1396,8 @@ class ServerTests(SynchronousTestCase):
                 (12345, ('10.0.0.1', 80)),
                 (54321, ('10.0.0.1', 81))]))
 
-        create_server.assert_called_once_with('http://dfw.openstack/',
+        create_server.assert_called_once_with(request,
+                                              'http://dfw.openstack/',
                                               'my-auth-token',
                                               expected_server_config,
                                               log=mock.ANY)
