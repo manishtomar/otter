@@ -4,14 +4,8 @@ The Otter Supervisor manages a number of workers to execute a launch config.
 This code is specific to the launch_server_v1 worker.
 """
 
-from functools import partial
-
-from toolz.functoolz import compose
-
 from twisted.application.service import Service
 from twisted.internet.defer import succeed
-
-from effect import Effect, FuncIntent
 
 from zope.interface import Interface, implementer
 
@@ -20,9 +14,6 @@ from otter.log import audit
 from otter.util.deferredutils import DeferredPool
 from otter.util.hashkey import generate_job_id
 from otter.util.timestamp import from_timestamp
-from otter.util.pure_http import (
-    get_request, request_with_auth, request_with_status_check,
-    request_with_json, content_request)
 from otter.worker import launch_server_v1, validate_config
 from otter.undo import InMemoryUndoStack
 
@@ -124,7 +115,7 @@ class SupervisorService(object, Service):
                 auth_token,
                 launch_config['args'],
                 undo,
-                _get_request_func(self.authenticator, scaling_group.tenant_id, log))
+                self.authenticator)
 
         d.addCallback(when_authenticated)
 
@@ -211,36 +202,6 @@ class SupervisorService(object, Service):
         currently running.
         """
         return True, {'jobs': len(self.deferred_pool)}
-
-
-def _get_request_func(authenticator, tenant_id, log):
-    """
-    Return a request function adorned with:
-
-    - authentication for Rackspace APIs
-    - HTTP status code checking
-    - JSON bodies and return values
-    - returning only content of the result, not response objects.
-
-    Integration point!
-    """
-    def auth():
-        return authenticator.authenticate_tenant(tenant_id, log=log)
-    auth_headers = Effect(FuncIntent(lambda: headers(auth())))
-
-    invalidate = Effect(FuncIntent(
-        lambda: authenticator.invalidate(tenant_id)))
-
-    request = partial(
-        request_with_auth,
-        get_request,
-        get_auth_headers=lambda: auth_headers,
-        refresh_auth_info=lambda: invalidate,
-        )
-    request = partial(request_with_status_check, request)
-    request = partial(request_with_json, request)
-    request = compose(content_request, request)
-    return request
 
 
 _supervisor = None

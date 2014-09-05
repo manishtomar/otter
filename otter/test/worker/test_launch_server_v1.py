@@ -35,7 +35,8 @@ from otter.worker.launch_server_v1 import (
     find_server,
     find_server_effect,
     ServerCreationRetryError,
-    CLBOrNodeDeleted
+    CLBOrNodeDeleted,
+    _get_request_func
 )
 
 
@@ -78,7 +79,7 @@ fake_service_catalog = [
 ]
 
 
-def _get_request_func():
+def _noauth_request_func():
     """
     For now, return a simple request function that doesn't do any
     authentication, because authentication is *largely* not a concern for
@@ -823,7 +824,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
-        find_server(_get_request_func(),
+        find_server(_noauth_request_func(),
                     'http://url/', _get_server_info())
 
         url = urlunsplit([
@@ -845,7 +846,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
-        find_server(_get_request_func(),
+        find_server(_noauth_request_func(),
                     'http://url/', server_config)
 
         url = urlunsplit([
@@ -864,7 +865,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=500))
         self.treq.content.return_value = succeed(error_body)
 
-        d = find_server(_get_request_func(),
+        d = find_server(_noauth_request_func(),
                         'http://url/', _get_server_info())
         failure = self.failureResultOf(d, APIError)
         self.assertEqual(failure.value.code, 500)
@@ -877,7 +878,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
-        d = find_server(_get_request_func(),
+        d = find_server(_noauth_request_func(),
                         'http://url/', _get_server_info())
         self.assertIsNone(self.successResultOf(d))
 
@@ -891,7 +892,7 @@ class ServerTests(SynchronousTestCase):
             'servers': [_get_server_info(metadata={'hello': 'there'})]
         }))
 
-        d = find_server(_get_request_func(),
+        d = find_server(_noauth_request_func(),
                         'http://url/', _get_server_info())
         self.failureResultOf(d, ServerCreationRetryError)
 
@@ -904,7 +905,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.content.return_value = succeed(
             json.dumps({'servers': [_get_server_info(metadata={'hey': 'there'})]}))
 
-        d = find_server(_get_request_func(),
+        d = find_server(_noauth_request_func(),
                         'http://url/',
                         _get_server_info(metadata={'hey': 'there'}))
 
@@ -925,7 +926,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({'servers': servers}))
 
-        d = find_server(_get_request_func(),
+        d = find_server(_noauth_request_func(),
                         'http://url/', _get_server_info(),
                         self.log)
 
@@ -1061,7 +1062,7 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = succeed(None)
 
-        request = _get_request_func()
+        request = _noauth_request_func()
 
         d = create_server(request,
                           'http://url/', 'my-auth-token', {}, log=self.log,
@@ -1385,7 +1386,7 @@ class ServerTests(SynchronousTestCase):
         ])
 
         log = mock.Mock()
-        request = _get_request_func()
+        authenticator = object()
         d = launch_server(log,
                           'DFW',
                           self.scaling_group,
@@ -1393,7 +1394,7 @@ class ServerTests(SynchronousTestCase):
                           'my-auth-token',
                           launch_config,
                           self.undo,
-                          request)
+                          authenticator)
 
         result = self.successResultOf(d)
         self.assertEqual(
@@ -1402,7 +1403,7 @@ class ServerTests(SynchronousTestCase):
                 (12345, ('10.0.0.1', 80)),
                 (54321, ('10.0.0.1', 81))]))
 
-        create_server.assert_called_once_with(request,
+        create_server.assert_called_once_with(mock.ANY,
                                               'http://dfw.openstack/',
                                               'my-auth-token',
                                               expected_server_config,
@@ -2207,7 +2208,7 @@ class FindServerEffectTests(SynchronousTestCase):
         filtering on the image id, flavor id, and exact name in the server
         config.
         """
-        eff = find_server_effect(_get_request_func(), 'http://url/', _get_server_info())
+        eff = find_server_effect(_noauth_request_func(), 'http://url/', _get_server_info())
         expected_url = urlunsplit([
             'http', 'url', 'servers/detail',
             urlencode({"image": "123", "flavor": "xyz", "name": "^abcd$"}),
@@ -2217,7 +2218,7 @@ class FindServerEffectTests(SynchronousTestCase):
     def test_find_server_effect_passes_log_to_request(self):
         """The log argument is passed to the request function."""
         log = object()
-        eff = find_server_effect(_get_request_func(), 'http://url/',
+        eff = find_server_effect(_noauth_request_func(), 'http://url/',
                                  _get_server_info(), log=log)
         expected_url = urlunsplit([
             'http', 'url', 'servers/detail',
@@ -2234,7 +2235,7 @@ class FindServerEffectTests(SynchronousTestCase):
         server_config = _get_server_info()
         server_config['name'] = r"this.is[]regex\dangerous()*"
 
-        eff = find_server_effect(_get_request_func(), 'http://url/', server_config)
+        eff = find_server_effect(_noauth_request_func(), 'http://url/', server_config)
         expected_url = urlunsplit([
             'http', 'url', 'servers/detail',
             urlencode({"image": "123", "flavor": "xyz",
@@ -2247,7 +2248,7 @@ class FindServerEffectTests(SynchronousTestCase):
         :func:`find_server` propagates any errors from Nova
         """
         eff = find_server_effect(
-            _get_request_func(), 'http://url/', _get_server_info())
+            _noauth_request_func(), 'http://url/', _get_server_info())
         self.assertEqual(
             lambda: fail_effect(eff, APIError(500, error_body)),
             matches(raises(APIError(500, error_body))))
@@ -2259,7 +2260,7 @@ class FindServerEffectTests(SynchronousTestCase):
         """
         response = stub_pure_response({"servers": []}, 200)
         eff = find_server_effect(
-            _get_request_func(), 'http://url/', _get_server_info())
+            _noauth_request_func(), 'http://url/', _get_server_info())
         self.assertIsNone(resolve_effect(eff, response))
 
     def test_find_server_raises_if_server_from_nova_has_wrong_metadata(self):
@@ -2271,7 +2272,7 @@ class FindServerEffectTests(SynchronousTestCase):
             {'servers': [_get_server_info(metadata={'hello': 'there'})]},
             200)
         eff = find_server_effect(
-            _get_request_func(), 'http://url/', _get_server_info())
+            _noauth_request_func(), 'http://url/', _get_server_info())
         self.assertRaises(ServerCreationRetryError, resolve_effect, eff, response)
 
     def test_find_server_returns_match_from_nova(self):
@@ -2282,7 +2283,7 @@ class FindServerEffectTests(SynchronousTestCase):
         response = stub_pure_response(
             {'servers': [_get_server_info(metadata={'hey': 'there'})]},
             200)
-        eff = find_server_effect(_get_request_func(), 'http://url/',
+        eff = find_server_effect(_noauth_request_func(), 'http://url/',
                                  _get_server_info(metadata={'hey': 'there'}))
         self.assertEqual(
             resolve_effect(eff, response),
@@ -2298,6 +2299,51 @@ class FindServerEffectTests(SynchronousTestCase):
             _get_server_info(created='2014-04-04T04:04:05Z'),
         ]
         response = stub_pure_response({'servers': servers}, 200)
-        eff = find_server_effect(_get_request_func(),
+        eff = find_server_effect(_noauth_request_func(),
                                  'http://url/', _get_server_info())
         self.assertRaises(ServerCreationRetryError, resolve_effect, eff, response)
+
+
+class FakeCachingAuthenticator(object):
+    def __init__(self):
+        self.cache = {}
+
+    def authenticate_tenant(self, tenant_id, log=None):
+        token = 'token'
+        self.cache[tenant_id] = token
+        return succeed(token)
+
+    def invalidate(self, tenant_id):
+        del self.cache[tenant_id]
+
+
+class GetRequestFuncTests(SynchronousTestCase):
+    def test_get_request_func_authenticates(self):
+        log = object()
+        authenticator = FakeCachingAuthenticator()
+        request = _get_request_func(authenticator, 1, log)
+        eff = request('get', 'http://example.com/')
+        # First there's a FuncIntent for the authentication
+        next_eff = resolve_effect(eff, self.successResultOf(eff.intent.func()))
+        # which causes the token to be cached
+        self.assertEqual(authenticator.cache[1], 'token')
+        # The next effect in the chain is the requested HTTP request,
+        # with appropriate auth headers
+        self.assertEqual(next_eff.intent,
+            Request(method='get', url='http://example.com/',
+                    headers=headers('token')))
+
+    def test_invalidate_on_auth_error_code(self):
+        log = object()
+        authenticator = FakeCachingAuthenticator()
+        request = _get_request_func(authenticator, 1, log)
+        eff = request('get', 'http://example.com/')
+        # First there's a FuncIntent for the authentication
+        next_eff = resolve_effect(eff, self.successResultOf(eff.intent.func()))
+        # which causes the token to be cached
+        self.assertEqual(authenticator.cache[1], 'token')
+        # When the HTTP response is an auth error, the auth cache is
+        # invalidated, by way of the next effect:
+        invalidate_effect = resolve_effect(next_eff, stub_pure_response("", 401))
+        self.assertRaises(APIError, resolve_effect, invalidate_effect, invalidate_effect.intent.func())
+        self.assertNotIn(1, authenticator.cache)

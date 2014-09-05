@@ -23,7 +23,10 @@ from copy import deepcopy
 import re
 from urllib import urlencode
 
+from effect import Effect, FuncIntent
 from effect.twisted import perform
+
+from toolz.functoolz import compose
 
 from twisted.python.failure import Failure
 from twisted.internet.defer import gatherResults, maybeDeferred, DeferredSemaphore
@@ -35,7 +38,9 @@ from otter.util.config import config_value
 from otter.util.http import (append_segments, headers, check_success,
                              wrap_request_error, raise_error_on_code,
                              APIError, RequestError)
-from otter.util.pure_http import request
+from otter.util.pure_http import (
+    get_request, request_with_auth, request_with_status_check,
+    request_with_json, content_request)
 from otter.util.hashkey import generate_server_name
 from otter.util.deferredutils import retry_and_timeout, log_with_time
 from otter.util.retry import (retry, retry_times, repeating_interval,
@@ -49,6 +54,39 @@ LB_MAX_RETRIES = 10
 
 # Range from which random retry interval is got
 LB_RETRY_INTERVAL_RANGE = [10, 15]
+
+
+def _get_request_func(authenticator, tenant_id, log):
+    """
+    Return a request function adorned with:
+
+    - authentication for Rackspace APIs
+    - HTTP status code checking
+    - JSON bodies and return values
+    - returning only content of the result, not response objects.
+
+    Integration point!
+    """
+
+    def auth():
+        return authenticator.authenticate_tenant(tenant_id, log=log)
+
+    def invalidate():
+        authenticator.invalidate(tenant_id)
+
+    auth_headers = Effect(FuncIntent(auth)).on(success=headers)
+    invalidate = Effect(FuncIntent(invalidate))
+
+    request = partial(
+        request_with_auth,
+        get_request,
+        get_auth_headers=lambda: auth_headers,
+        refresh_auth_info=lambda: invalidate,
+        )
+    request = partial(request_with_status_check, request)
+    request = partial(request_with_json, request)
+    request = compose(content_request, request)
+    return request
 
 
 class UnexpectedServerStatus(Exception):
@@ -602,7 +640,7 @@ def prepare_launch_config(scaling_group_uuid, launch_config):
 
 
 def launch_server(log, region, scaling_group, service_catalog, auth_token,
-                  launch_config, undo, request, clock=None):
+                  launch_config, undo, authenticator, clock=None):
     """
     Launch a new server given the launch config auth tokens and service catalog.
     Possibly adding the newly launched server to a load balancer.
@@ -621,6 +659,8 @@ def launch_server(log, region, scaling_group, service_catalog, auth_token,
     :return: Deferred that fires with a 2-tuple of server details and the
         list of load balancer responses from add_to_load_balancers.
     """
+
+    request = _get_request_func(authenticator, scaling_group.tenant_id, log)
     launch_config = prepare_launch_config(scaling_group.uuid, launch_config)
 
     lb_region = config_value('regionOverrides.cloudLoadBalancers') or region

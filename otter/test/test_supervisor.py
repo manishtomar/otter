@@ -3,8 +3,6 @@ Tests for the worker supervisor.
 """
 import mock
 
-from effect import perform
-
 from testtools.matchers import ContainsDict, Equals, IsInstance, KeysEqual
 
 from twisted.trial.unittest import SynchronousTestCase
@@ -25,10 +23,6 @@ from otter.test.utils import (
 from otter.util.deferredutils import DeferredPool
 
 
-class FakeAuthenticator(object):
-    pass
-
-
 class SupervisorTests(SynchronousTestCase):
     """
     Common stuff for tests in SupervisorService
@@ -45,7 +39,7 @@ class SupervisorTests(SynchronousTestCase):
 
         self.auth_token = 'auth-token'
         self.service_catalog = {}
-        authenticator = FakeAuthenticator()
+        authenticator = mock.Mock()
         self.auth_function = authenticator.authenticate_tenant = mock.Mock(
             return_value=succeed((self.auth_token, self.service_catalog)))
 
