@@ -6,6 +6,8 @@ import json
 from urllib import urlencode
 from urlparse import urlunsplit
 
+from effect.testing import fail_effect, resolve_effect
+
 from twisted.trial.unittest import SynchronousTestCase
 from twisted.internet.defer import Deferred, fail, succeed
 from twisted.internet.task import Clock
@@ -31,6 +33,7 @@ from otter.worker.launch_server_v1 import (
     LB_MAX_RETRIES,
     LB_RETRY_INTERVAL_RANGE,
     find_server,
+    find_server_effect,
     ServerCreationRetryError,
     CLBOrNodeDeleted
 )
@@ -38,11 +41,15 @@ from otter.worker.launch_server_v1 import (
 
 from otter.test.utils import (mock_log, patch, CheckFailure, mock_treq,
                               matches, DummyException, IsBoundWith,
-                              StubTreq, StubResponse)
-from testtools.matchers import IsInstance, StartsWith
+                              StubTreq, StubResponse, stub_pure_response)
+from testtools.matchers import IsInstance, StartsWith, raises
 
 from otter.auth import headers
 from otter.util.http import APIError, RequestError, wrap_request_error
+from otter.util.pure_http import (
+    content_request, request_with_json, request_with_status_check,
+    get_request, Request)
+
 from otter.util.config import set_config_data
 from otter.util.deferredutils import unwrap_first_error, TimedOutError
 
@@ -69,6 +76,21 @@ fake_service_catalog = [
          {'region': 'DFW', 'publicURL': 'http://dfw.lbaas/'},
      ]}
 ]
+
+
+def _get_request_func():
+    """
+    For now, return a simple request function that doesn't do any
+    authentication, because authentication is *largely* not a concern for
+    launch_server_v1.
+    """
+    from toolz.functoolz import compose
+    from functools import partial
+    return compose(content_request,
+                   partial(request_with_json,
+                           partial(request_with_status_check,
+                                   get_request)))
+
 
 
 class UtilityTests(SynchronousTestCase):
@@ -746,22 +768,6 @@ class ServerTests(SynchronousTestCase):
 
         self.undo = iMock(IUndoStack)
 
-    def _get_request_func(self):
-        """
-        For now, return a simple request function that doesn't do any
-        authentication, because authentication is *largely* not a concern for
-        launch_server_v1.
-        """
-        from otter.util.pure_http import (
-            content_request, request_with_json, request_with_status_check,
-            get_request)
-        from toolz.functoolz import compose
-        from functools import partial
-        return compose(content_request,
-                       partial(request_with_json,
-                               partial(request_with_status_check,
-                                       get_request)))
-
     def test_server_details(self):
         """
         server_details will perform a properly formed GET request against
@@ -817,9 +823,8 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
-        d = find_server(self._get_request_func(),
-                        'http://url/', _get_server_info())
-        self.successResultOf(d)
+        find_server(_get_request_func(),
+                    'http://url/', _get_server_info())
 
         url = urlunsplit([
             'http', 'url', 'servers/detail',
@@ -840,7 +845,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
-        find_server(self._get_request_func(),
+        find_server(_get_request_func(),
                     'http://url/', server_config)
 
         url = urlunsplit([
@@ -859,7 +864,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=500))
         self.treq.content.return_value = succeed(error_body)
 
-        d = find_server(self._get_request_func(),
+        d = find_server(_get_request_func(),
                         'http://url/', _get_server_info())
         failure = self.failureResultOf(d, APIError)
         self.assertEqual(failure.value.code, 500)
@@ -872,7 +877,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({"servers": []}))
 
-        d = find_server(self._get_request_func(),
+        d = find_server(_get_request_func(),
                         'http://url/', _get_server_info())
         self.assertIsNone(self.successResultOf(d))
 
@@ -886,7 +891,7 @@ class ServerTests(SynchronousTestCase):
             'servers': [_get_server_info(metadata={'hello': 'there'})]
         }))
 
-        d = find_server(self._get_request_func(),
+        d = find_server(_get_request_func(),
                         'http://url/', _get_server_info())
         self.failureResultOf(d, ServerCreationRetryError)
 
@@ -899,7 +904,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.content.return_value = succeed(
             json.dumps({'servers': [_get_server_info(metadata={'hey': 'there'})]}))
 
-        d = find_server(self._get_request_func(),
+        d = find_server(_get_request_func(),
                         'http://url/',
                         _get_server_info(metadata={'hey': 'there'}))
 
@@ -920,7 +925,7 @@ class ServerTests(SynchronousTestCase):
         self.treq.request.return_value = succeed(mock.Mock(code=200))
         self.treq.content.return_value = succeed(json.dumps({'servers': servers}))
 
-        d = find_server(self._get_request_func(),
+        d = find_server(_get_request_func(),
                         'http://url/', _get_server_info(),
                         self.log)
 
@@ -1056,7 +1061,7 @@ class ServerTests(SynchronousTestCase):
 
         fs.return_value = succeed(None)
 
-        request = self._get_request_func()
+        request = _get_request_func()
 
         d = create_server(request,
                           'http://url/', 'my-auth-token', {}, log=self.log,
@@ -1380,7 +1385,7 @@ class ServerTests(SynchronousTestCase):
         ])
 
         log = mock.Mock()
-        request = self._get_request_func()
+        request = _get_request_func()
         d = launch_server(log,
                           'DFW',
                           self.scaling_group,
@@ -2191,3 +2196,111 @@ class DeleteServerTests(SynchronousTestCase):
         # the loop has stopped
         self.clock.pump([16, 32])
         self.assertEqual(delete_and_verify.call_count, 3)
+
+
+class FindServerTests(SynchronousTestCase):
+    """Tests for :func:`find_server`."""
+
+    def test_find_server_tells_nova_to_filter_by_image_flavor_and_name(self):
+        """
+        :func:`find_server` makes a call to nova to list server details while
+        filtering on the image id, flavor id, and exact name in the server
+        config.
+        """
+        eff = find_server_effect(_get_request_func(), 'http://url/', _get_server_info())
+        expected_url = urlunsplit([
+            'http', 'url', 'servers/detail',
+            urlencode({"image": "123", "flavor": "xyz", "name": "^abcd$"}),
+            None])
+        self.assertEqual(eff.intent, Request(method='get', url=expected_url))
+
+    def test_find_server_effect_passes_log_to_request(self):
+        """The log argument is passed to the request function."""
+        log = object()
+        eff = find_server_effect(_get_request_func(), 'http://url/',
+                                 _get_server_info(), log=log)
+        expected_url = urlunsplit([
+            'http', 'url', 'servers/detail',
+            urlencode({"image": "123", "flavor": "xyz", "name": "^abcd$"}),
+            None])
+        self.assertEqual(eff.intent,
+                         Request(method='get', url=expected_url, log=log))
+
+    def test_find_server_regex_escapes_server_name(self):
+        """
+        :func:`find_server` when giving the exact name of the server,
+        regex-escapes the name
+        """
+        server_config = _get_server_info()
+        server_config['name'] = r"this.is[]regex\dangerous()*"
+
+        eff = find_server_effect(_get_request_func(), 'http://url/', server_config)
+        expected_url = urlunsplit([
+            'http', 'url', 'servers/detail',
+            urlencode({"image": "123", "flavor": "xyz",
+                       "name": r"^this\.is\[\]regex\\dangerous\(\)\*$"}),
+            None])
+        self.assertEqual(eff.intent, Request(method='get', url=expected_url))
+
+    def test_find_server_propagates_api_errors(self):
+        """
+        :func:`find_server` propagates any errors from Nova
+        """
+        eff = find_server_effect(
+            _get_request_func(), 'http://url/', _get_server_info())
+        self.assertEqual(
+            lambda: fail_effect(eff, APIError(500, error_body)),
+            matches(raises(APIError(500, error_body))))
+
+    def test_find_server_returns_None_if_no_servers_from_nova(self):
+        """
+        :func:`find_server` will return None for servers if Nova returns no
+        matching servers
+        """
+        response = stub_pure_response({"servers": []}, 200)
+        eff = find_server_effect(
+            _get_request_func(), 'http://url/', _get_server_info())
+        self.assertIsNone(resolve_effect(eff, response))
+
+    def test_find_server_raises_if_server_from_nova_has_wrong_metadata(self):
+        """
+        :func:`find_server` will fail if the server Nova returned does not have
+        matching metadata
+        """
+        response = stub_pure_response(
+            {'servers': [_get_server_info(metadata={'hello': 'there'})]},
+            200)
+        eff = find_server_effect(
+            _get_request_func(), 'http://url/', _get_server_info())
+        self.assertRaises(ServerCreationRetryError, resolve_effect, eff, response)
+
+    def test_find_server_returns_match_from_nova(self):
+        """
+        :func:`find_server` will return a server returned from Nova if the
+        metadata match.
+        """
+        response = stub_pure_response(
+            {'servers': [_get_server_info(metadata={'hey': 'there'})]},
+            200)
+        eff = find_server_effect(_get_request_func(), 'http://url/',
+                                 _get_server_info(metadata={'hey': 'there'}))
+        self.assertEqual(
+            resolve_effect(eff, response),
+            {'server': _get_server_info(metadata={'hey': 'there'})})
+
+    def test_find_server_raises_if_nova_returns_more_than_one_server(self):
+        """
+        :func:`find_server` will return a the first server returned from Nova
+        whose metadata match.  It logs if there more than 1 server from Nova.
+        """
+        servers = [
+            _get_server_info(created='2014-04-04T04:04:04Z'),
+            _get_server_info(created='2014-04-04T04:04:05Z'),
+        ]
+
+        response = stub_pure_response({'servers': servers}, 200)
+
+        eff = find_server_effect(_get_request_func(),
+                                 'http://url/', _get_server_info())
+
+        self.assertRaises(ServerCreationRetryError, resolve_effect, eff, response)

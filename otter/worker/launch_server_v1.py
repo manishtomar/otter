@@ -176,7 +176,7 @@ class ServerCreationRetryError(Exception):
     """
 
 
-def find_server(request, server_endpoint, server_config, log=None):
+def find_server_effect(request, server_endpoint, server_config, log=None):
     """
     Given a server config, attempts to find a server created with that config.
 
@@ -189,10 +189,10 @@ def find_server(request, server_endpoint, server_config, log=None):
     :param dict server_config: Nova server config.
     :param log: A bound logger
 
-    :return: Deferred that fires with a server (in the format of a server
+    :return: Effect that results in a server (in the format of a server
         detail response) that matches that server config and creation time, or
         None if none matches
-    :raises: :class:`ServerCreationRetryError`
+    :raises: Effect of :class:`ServerCreationRetryError`
     """
     query_params = {
         'image': server_config['imageRef'],
@@ -229,8 +229,10 @@ def find_server(request, server_endpoint, server_config, log=None):
 
     eff = request('get', url, log=log, success_codes=[200])
     eff = eff.on(success=_check_if_server_exists)
-    d = perform(eff)
-    return d
+    return eff
+
+
+find_server = lambda *args, **kwargs: perform(find_server_effect(*args, **kwargs))
 
 
 class _NoCreatedServerFound(Exception):
