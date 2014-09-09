@@ -8,11 +8,9 @@ from functools import partial
 from effect import Effect
 from characteristic import attributes
 from toolz.dicttoolz import merge
-from toolz.functoolz import compose
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from otter.util import logging_treq
-from otter.util.fp import wrappers
 from otter.util.http import APIError
 
 
@@ -45,16 +43,6 @@ def get_request(method, url, **kwargs):
     """Return a Request wrapped in an Effect."""
     return Effect(Request(method=method, url=url, **kwargs))
 
-# json_request COULD exist and be Request -> Request
-# auth_request COULD be Request, get_auth_headers -> Effect
-# request_with_auth COULD be
-#   Effect, refresh_auth_info, reauth_codes -> Effect
-# request_with_status_check COULD be Effect, success_codes -> Effect
-# json_response COULD exist and be Effect -> Effect
-
-# considerations: change_obj(obj, attr=new, otherattr=new2)
-# a func Request -> Effect may be inconvenient if you already have an
-# Effect[Request] with callbacks attached.
 
 def auth_request(get_request, method, url, get_auth_headers, headers=None,
                  **kwargs):
@@ -133,25 +121,3 @@ def request_with_json(get_request, method, url, data=None, **kwargs):
 def content_request(effect):
     """Only return the content part of a response."""
     return effect.on(success=lambda r: r[1])
-
-
-_request = wrappers(
-    get_request,
-    request_with_auth,
-    request_with_status_check,
-    request_with_json)
-_request = compose(content_request, _request)
-
-
-def request(method, url, *args, **kwargs):
-    """
-    Make an HTTP request, with a number of conveniences. Accepts the same
-    arguments as :class:`Request`, in addition to these:
-
-    :param tuple success_codes: integer HTTP codes to accept as successful
-    :param data: python object, to be encoded with json
-    :param get_auth_headers: a function to retrieve auth tokens
-    :param refresh_auth_info: a function to refresh the auth cache
-    :param tuple reauth_codes: integer HTTP codes upon which to reauthenticate
-    """
-    return _request(method, url, *args, **kwargs)

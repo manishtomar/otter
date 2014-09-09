@@ -14,6 +14,7 @@ from otter.log import audit
 from otter.util.deferredutils import DeferredPool
 from otter.util.hashkey import generate_job_id
 from otter.util.timestamp import from_timestamp
+from otter.auth_http import get_request_func
 from otter.worker import launch_server_v1, validate_config
 from otter.undo import InMemoryUndoStack
 
@@ -107,6 +108,8 @@ class SupervisorService(object, Service):
 
         def when_authenticated((auth_token, service_catalog)):
             log.msg("Executing launch config.")
+            request = get_request_func(
+                self.authenticator, scaling_group.tenant_id, log)
             return launch_server_v1.launch_server(
                 log,
                 self.region,
@@ -115,7 +118,7 @@ class SupervisorService(object, Service):
                 auth_token,
                 launch_config['args'],
                 undo,
-                self.authenticator)
+                request)
 
         d.addCallback(when_authenticated)
 
