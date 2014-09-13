@@ -44,20 +44,17 @@ def get_request(method, url, **kwargs):
     return Effect(Request(method=method, url=url, **kwargs))
 
 
-def auth_request(get_request, method, url, get_auth_headers, headers=None,
-                 **kwargs):
+def auth_request(get_request, get_auth_headers, headers=None):
     """
     Performs an authenticated request, calling a function to get auth headers.
 
     :param get_auth_headers: A function that should return an Effect that
         returns auth-related headers as a dict.
     """
-    def try_request(auth_headers):
-        req_headers = {} if headers is None else headers
-        req_headers = merge(req_headers, auth_headers)
-        eff = get_request(method, url, headers=req_headers, **kwargs)
-        return eff
-    return get_auth_headers().on(success=try_request)
+    if headers is None:
+        headers = {}
+    return get_auth_headers().on(
+        success=lambda auth_headers: get_request(merge(headers, auth_headers)))
 
 
 def refresh_auth_on_error(reauth_codes, refresh_auth_info, result):
@@ -76,23 +73,23 @@ def refresh_auth_on_error(reauth_codes, refresh_auth_info, result):
         return result
 
 
-def request_with_auth(get_request, method, url,
-                      get_auth_headers,
-                      refresh_auth_info,
-                      headers=None, reauth_codes=(401, 403),
-                      **kwargs):
-    """
-    Get a request that will perform book-keeping on cached auth info.
+# def request_with_auth(get_request, method, url,
+#                       get_auth_headers,
+#                       refresh_auth_info,
+#                       headers=None, reauth_codes=(401, 403),
+#                       **kwargs):
+#     """
+#     Get a request that will perform book-keeping on cached auth info.
 
-    This composes the :func:`auth_request` and :func:`refresh_auth_on_error`
-    functions.
+#     This composes the :func:`auth_request` and :func:`refresh_auth_on_error`
+#     functions.
 
-    :param get_auth_headers: As per :func:`auth_request`
-    :param refresh_auth_info: As per :func:`refresh_auth_on_error`
-    :param reauth_codes: As per :func:`refresh_auth_on_error`.
-    """
-    eff = auth_request(get_request, method, url, get_auth_headers, headers=headers, **kwargs)
-    return eff.on(success=partial(refresh_auth_on_error, reauth_codes, refresh_auth_info))
+#     :param get_auth_headers: As per :func:`auth_request`
+#     :param refresh_auth_info: As per :func:`refresh_auth_on_error`
+#     :param reauth_codes: As per :func:`refresh_auth_on_error`.
+#     """
+#     eff = auth_request(get_request, method, url, get_auth_headers, headers=headers, **kwargs)
+#     return eff.on(success=partial(refresh_auth_on_error, reauth_codes, refresh_auth_info))
 
 
 def status_check(success_codes, result):

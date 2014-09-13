@@ -8,8 +8,12 @@ from effect import Effect, FuncIntent
 from toolz.functoolz import compose
 
 from otter.util.pure_http import (
-    get_request, request_with_auth, request_with_status_check,
-    request_with_json, content_request)
+    get_request,
+    auth_request,
+    refresh_auth_on_error,
+    request_with_status_check,
+    request_with_json,
+    content_request)
 from otter.util.http import headers
 
 
