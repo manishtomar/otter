@@ -587,9 +587,7 @@ class CassScalingGroup(object):
         self.local_locks = local_locks
 
         self.group_table = "scaling_group"
-        self.launch_table = "launch_config"
         self.policies_table = "scaling_policies"
-        self.state_table = "group_state"
         self.webhooks_table = "policy_webhooks"
         self.webhooks_keys_table = "webhook_keys"
         self.event_table = "scaling_schedule_v2"
@@ -1191,11 +1189,9 @@ class CassScalingGroupCollection:
         self.reactor = reactor
         self.local_locks = WeakLocks()
         self.group_table = "scaling_group"
-        self.launch_table = "launch_config"
         self.policies_table = "scaling_policies"
         self.webhooks_table = "policy_webhooks"
         self.webhook_keys_table = "webhook_keys"
-        self.state_table = "group_state"
         self.event_table = "scaling_schedule_v2"
         self.buckets = None
         self.kz_client = None
