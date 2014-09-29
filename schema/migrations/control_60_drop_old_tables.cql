@@ -14,3 +14,13 @@ DROP TABLE launch_config;
 
 -- from control_50_create_group_state.cql
 DROP TABLE group_state;
+
+
+
+-- from control_51_create_lock_table.cql, because no longer use DB-based locks
+DROP TABLE locks;
+
+
+
+-- from control_60_create_audit_log.cql, because audit logs go elsewhere
+DROP TABLE audit_log;
