@@ -2,13 +2,8 @@
 Convergence.
 """
 
-from functools import partial
 from urllib import urlencode
 from operator import itemgetter
-
-import treq
-
-from twisted.internet import defer
 
 from characteristic import attributes, Attribute
 from pyrsistent import pbag, freeze
@@ -19,8 +14,7 @@ from twisted.python.constants import Names, NamedConstant
 from toolz.curried import filter, groupby
 from toolz.functoolz import compose
 
-from otter.log import log as default_log
-from otter.util.http import append_segments, check_success, headers
+from otter.util.http import append_segments
 from otter.util.fp import partition_bool, partition_groups
 
 
@@ -57,6 +51,7 @@ def get_all_server_details(request, limit=100):
             query.update({'marker': marker})
         urlparams = sorted(query.items(), key=itemgetter(0))
         eff = request('GET', '{}?{}'.format(url, urlencode(urlparams)))
+
         def continue_(response):
             servers = response['servers']
             if len(servers) < limit:

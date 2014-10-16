@@ -1,16 +1,11 @@
 """Tests for convergence."""
 
-import json
-
 from effect import Effect, ConstantIntent
 from effect.testing import StubIntent, resolve_stubs
 
 from twisted.trial.unittest import SynchronousTestCase
-from twisted.internet.defer import succeed
 
-from otter.test.utils import StubTreq2, patch, iMock
-from otter.auth import IAuthenticator
-from otter.util.http import headers, APIError
+from otter.test.utils import patch
 from otter.convergence import (
     _converge_lb_state,
     get_all_server_details, get_scaling_group_servers,
