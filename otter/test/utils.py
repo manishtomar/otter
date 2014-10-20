@@ -7,6 +7,8 @@ import mock
 import os
 import treq
 
+from characteristic import attributes, Attribute
+
 from zope.interface import implementer, directlyProvides
 
 from testtools.matchers import Mismatch
@@ -269,15 +271,15 @@ def mock_log(*args, **kwargs):
     return BoundLog(mock.Mock(spec=[]), mock.Mock(spec=[]))
 
 
+@attributes(['code', 'headers',
+             Attribute('data', default_value=None)])
 class StubResponse(object):
     """
     A fake pre-built Twisted Web Response object.
     """
-    def __init__(self, code, headers, data=None):
-        self.code = code
-        self.headers = headers
+    def __init__(self):
         # Data is not part of twisted response object
-        self._data = data
+        self._data = self.data
 
 
 def stub_pure_response(body, code=200, response_headers=None):
@@ -288,7 +290,7 @@ def stub_pure_response(body, code=200, response_headers=None):
         body = json.dumps(body)
     if response_headers is None:
         response_headers = {}
-    return (StubResponse(code, response_headers), body)
+    return (StubResponse(code=code, headers=response_headers), body)
 
 
 class StubTreq(object):
@@ -403,7 +405,7 @@ class StubTreq2(object):
             code, data = resp.pop(0)
         else:
             code, data = resp
-        return succeed(StubResponse(code, (), data))
+        return succeed(StubResponse(code=code, headers={}, data=data))
 
     def content(self, response):
         """Return a result by taking the data from `response` itself."""

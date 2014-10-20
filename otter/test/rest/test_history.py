@@ -137,7 +137,7 @@ class OtterHistoryTestCase(RestAPITestMixin, SynchronousTestCase):
 
         req = ('GET', 'http://dummy/_search', None,
                '{"tenant_id": 101010}', {'log': mock.ANY})
-        resp = StubResponse(200, {})
+        resp = StubResponse(code=200, headers={})
 
         self.treq = StubTreq(
             [(req, resp)],
