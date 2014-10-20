@@ -10,6 +10,8 @@ import json
 from collections import namedtuple
 import time
 
+from effect.twisted import perform
+
 from twisted.internet import task, defer
 from twisted.internet.endpoints import clientFromString
 from twisted.application.internet import TimerService
@@ -35,6 +37,10 @@ from otter.log import log as otter_log
 
 
 metrics_log = otter_log.bind(system='otter.metrics')
+
+
+def make_request(tenant_id, authenticator, nova_service, region, clock):
+    return lambda method, path: None
 
 
 @defer.inlineCallbacks
@@ -134,10 +140,13 @@ def check_diff_configs(client, authenticator, nova_service, region, clock=None):
     defs = []
     sem = defer.DeferredSemaphore(10)
     for tenant_id, groups in tenanted_groups.iteritems():
+        requester = make_request(tenant_id, authenticator,
+                                 nova_service, region, clock)
         d = sem.run(
-            get_scaling_group_servers, tenant_id, authenticator,
-            nova_service, region, server_predicate=lambda s: s['status'] in ('ACTIVE', 'BUILD'),
-            clock=clock)
+            perform,
+            get_scaling_group_servers(
+                requester,
+                server_predicate=lambda s: s['status'] in ('ACTIVE', 'BUILD')))
         d.addCallback(partial(check_tenant_config, tenant_id, groups))
         defs.append(d)
 
@@ -192,11 +201,13 @@ def get_all_metrics(cass_groups, authenticator, nova_service, region,
     defs = []
     group_metrics = []
     for tenant_id, groups in tenanted_groups.iteritems():
+        requester = make_request(tenant_id, authenticator,
+                                 nova_service, region, clock)
         d = sem.run(
-            get_scaling_group_servers, tenant_id, authenticator,
-            nova_service, region,
-            server_predicate=lambda s: s['status'] in ('ACTIVE', 'BUILD'),
-            clock=clock)
+            perform,
+            get_scaling_group_servers(
+                requester,
+                server_predicate=lambda s: s['status'] in ('ACTIVE', 'BUILD')))
         d.addCallback(partial(get_tenant_metrics, tenant_id, groups, _print=_print))
         d.addCallback(group_metrics.extend)
         defs.append(d)

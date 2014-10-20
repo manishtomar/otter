@@ -6,6 +6,8 @@ import mock
 import json
 from io import StringIO
 
+from effect import Effect, ConstantIntent
+
 from pyrsistent import freeze
 
 from toolz.dicttoolz import merge
@@ -122,9 +124,13 @@ class GetMetricsTests(SynchronousTestCase):
         Mock get_scaling_group_servers
         """
         self.tenant_servers = {}
+        # XXX lol radix this is so horrific
+        self.mock_make_request = patch(
+            self, 'otter.metrics.make_request',
+            side_effect=lambda t, a, n, r, c: lambda: t)
         self.mock_gsgs = patch(
             self, 'otter.metrics.get_scaling_group_servers',
-            side_effect=lambda t, *a, **k: succeed(self.tenant_servers[t]))
+            side_effect=lambda request, server_predicate=None: Effect(ConstantIntent(self.tenant_servers[request()])))
 
     def test_get_tenant_metrics(self):
         """
@@ -157,9 +163,9 @@ class GetMetricsTests(SynchronousTestCase):
             set([GroupMetrics('t1', 'g1', 3, 3, 2), GroupMetrics('t1', 'g2', 4, 1, 0),
                  GroupMetrics('t2', 'g4', 2, 1, 1)]))
         self.mock_gsgs.assert_any_call(
-            't1', 'a', 'n', 'r', server_predicate=IsCallable(), clock='c')
+            IsCallable(), server_predicate=IsCallable())
         self.mock_gsgs.assert_any_call(
-            't2', 'a', 'n', 'r', server_predicate=IsCallable(), clock='c')
+            IsCallable(), server_predicate=IsCallable())
 
 
 class AddToCloudMetricsTests(SynchronousTestCase):

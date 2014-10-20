@@ -65,8 +65,9 @@ def get_all_server_details(request, limit=100):
 
 def get_scaling_group_servers(request, server_predicate=None):
     """
-    Return tenant's servers that belong to a scaling group as
-    {group_id: [server1, server2]} ``dict``. No specific ordering is guaranteed
+    Return tenant's servers that belong to a scaling group as an Effect of a
+    dict in the shape of {group_id: [server1, server2]}. No specific ordering
+    is guaranteed.
 
     :param server_predicate: `callable` taking single server as arg and returns True
                               if the server should be included, False otherwise
