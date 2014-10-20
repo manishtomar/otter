@@ -961,7 +961,7 @@ class ServerTests(SynchronousTestCase):
         req = ('POST', 'http://url/servers',
                headers('my-auth-token'),
                json.dumps({'server': {'some': 'stuff'}}), {'log': mock.ANY})
-        resp = StubResponse(code=202, headers={})
+        resp = StubResponse(202, {})
 
         _treq = StubTreq([(req, resp)], [(resp, '{"server": "created"}')])
 
@@ -1014,7 +1014,7 @@ class ServerTests(SynchronousTestCase):
         req = ('POST', 'http://url/servers',
                headers('my-auth-token'),
                json.dumps({'server': {}}), {'log': mock.ANY})
-        resp = StubResponse(code=500, headers={})
+        resp = StubResponse(500, {})
 
         clock = Clock()
         _treq = StubTreq([(req, resp)], [(resp, 'failure')])
@@ -1044,7 +1044,7 @@ class ServerTests(SynchronousTestCase):
         req = ('POST', 'http://url/servers',
                headers('my-auth-token'),
                json.dumps({'server': {'some': 'stuff'}}), {'log': mock.ANY})
-        resp = StubResponse(code=500, headers={})
+        resp = StubResponse(500, {})
 
         clock = Clock()
         _treq = StubTreq([(req, resp)], [(resp, 'failure')])
@@ -1070,7 +1070,7 @@ class ServerTests(SynchronousTestCase):
         req = ('POST', 'http://url/servers',
                headers('my-auth-token'),
                json.dumps({'server': {}}), {'log': mock.ANY})
-        resp = StubResponse(code=500, headers={})
+        resp = StubResponse(500, {})
 
         clock = Clock()
         _treq = StubTreq([(req, resp)], [(resp, 'failure')])
@@ -1103,7 +1103,7 @@ class ServerTests(SynchronousTestCase):
         req = ('POST', 'http://url/servers',
                headers('my-auth-token'),
                json.dumps({'server': {}}), {'log': mock.ANY})
-        resp = StubResponse(code=500, headers={})
+        resp = StubResponse(500, {})
 
         _treq = StubTreq([(req, resp)], [(resp, error_body)])
 
@@ -1130,7 +1130,7 @@ class ServerTests(SynchronousTestCase):
         req = ('POST', 'http://url/servers',
                headers('my-auth-token'),
                json.dumps({'server': {}}), {'log': mock.ANY})
-        resp = StubResponse(code=400, headers={})
+        resp = StubResponse(400, {})
 
         _treq = StubTreq([(req, resp)], [(resp, "User error!")])
 

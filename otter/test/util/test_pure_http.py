@@ -8,10 +8,10 @@ from testtools import TestCase
 
 from effect.testing import StubIntent, resolve_effect, resolve_stubs
 from effect.twisted import perform
-from effect import Effect, ConstantIntent
+from effect import Effect, ConstantIntent, FuncIntent
 
 from otter.util.pure_http import (
-    request_with_auth, Request, check_status, bind_root)
+    request_with_auth, Request, check_status, bind_root, get_request)
 from otter.util.http import APIError
 from otter.test.utils import stub_pure_response, StubResponse, StubTreq
 
@@ -29,7 +29,7 @@ class RequestEffectTests(SynchronousTestCase):
         of the Twisted Response object and the content as bytes.
         """
         req = ('GET', 'http://google.com/', None, None,  {'log': None})
-        response = StubResponse(code=200, headers={})
+        response = StubResponse(200, {})
         treq = StubTreq(reqs=[(req, response)],
                         contents=[(response, "content")])
         req = Request(method="get", url="http://google.com/")
@@ -44,7 +44,7 @@ class RequestEffectTests(SynchronousTestCase):
         """
         log = object()
         req = ('GET', 'http://google.com/', None, None, {'log': log})
-        response = StubResponse(code=200, headers={})
+        response = StubResponse(200, {})
         treq = StubTreq(reqs=[(req, response)],
                         contents=[(response, "content")])
         req = Request(method="get", url="http://google.com/", log=log)
@@ -76,35 +76,44 @@ class CheckStatusTests(TestCase):
 class RequestWithAuthTests(TestCase):
     """Tests for :func:`request_with_auth`"""
 
+    def setUp(self):
+        super(RequestWithAuthTests, self).setUp()
+        self.invalidations = []
+        invalidate = lambda: self.invalidations.append(True)
+        self.auth_effect = Effect(Constant({"x-auth-token": "abc123"}))
+        self.invalidate_effect = Effect(StubIntent(FuncIntent(invalidate)))
+
     def test_header_merging(self):
         """
         The headers passed in the original request are merged with
         authentication headers.
         """
         eff = request_with_auth(
-            lambda headers: stub_pure_response(json.dumps(headers), 200),
-            Effect(Constant({"auth": "headers"})),
-            Effect(Constant(None)),
+            lambda headers: get_request("m", "u", headers=headers),
+            self.auth_effect,
+            self.invalidate_effect,
             headers={"default": "headers"})
         self.assertEqual(
-            resolve_stubs(eff),
-            stub_pure_response(json.dumps({"auth": "headers",
-                                            "default": "headers"}),
-                               200))
+            resolve_stubs(eff).intent,
+            Request(method="m",
+                    url="u",
+                    headers={"x-auth-token": "abc123",
+                             "default": "headers"}))
 
     def test_auth_headers_win(self):
         """
         When merging headers together, auth headers win.
         """
         eff = request_with_auth(
-            lambda headers: stub_pure_response(json.dumps(headers), 200),
-            Effect(Constant({"x-auth-token": "authy"})),
-            Effect(Constant(None)),
-            headers={"x-auth-token": "abc123"})
+            lambda headers: get_request("m", "u", headers=headers),
+            self.auth_effect,
+            self.invalidate_effect,
+            headers={"x-auth-token": "fooey"})
         self.assertEqual(
-            resolve_stubs(eff),
-            stub_pure_response(json.dumps({"x-auth-token": "authy"}),
-                               200))
+            resolve_stubs(eff).intent,
+            Request(method="m",
+                    url="u",
+                    headers={"x-auth-token": "abc123"}))
 
     def test_reauth_successful(self):
         """
@@ -128,9 +137,6 @@ class RequestWithAuthTests(TestCase):
         return self._test_reauth(500, reauth_codes=(401, 403, 500))
 
     def _test_reauth(self, code, reauth_codes=None):
-        reauth_effect = Effect(Constant(None))
-        get_auth_headers = Effect(Constant({'x-auth-token': "first-token"}))
-
         # First we try to make a simple request.
         kwargs = {}
         if reauth_codes is not None:
@@ -138,10 +144,12 @@ class RequestWithAuthTests(TestCase):
         badauth = stub_pure_response("badauth!", code=code)
         eff = request_with_auth(
             lambda headers: badauth,
-            get_auth_headers, reauth_effect,
+            self.auth_effect,
+            self.invalidate_effect,
             headers={"base": "header"},
             **kwargs)
         self.assertEqual(resolve_stubs(eff), badauth)
+        self.assertEqual(self.invalidations, [True])
 
 class BindRootTests(TestCase):
     """Tests for :func:`bind_root`"""

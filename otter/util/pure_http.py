@@ -48,7 +48,8 @@ def auth_request(get_request, get_auth_headers, headers=None):
     """
     Performs an authenticated request, calling a function to get auth headers.
 
-    :param get_request: A function which only accepts a 'headers' argument.
+    :param get_request: A function which only accepts a 'headers' argument,
+        and returns an :obj:`Effect` of :obj:`Request`.
     :param get_auth_headers: An Effect that returns auth-related headers as a dict.
     """
     headers = headers if headers is not None else {}
@@ -56,41 +57,39 @@ def auth_request(get_request, get_auth_headers, headers=None):
         success=lambda auth_headers: get_request(merge(headers, auth_headers)))
 
 
-def refresh_auth_on_error(reauth_codes, refresh_auth_info, result):
+def invalidate_auth_on_error(reauth_codes, invalidate_auth, result):
     """
-    Refreshes an auth cache if an HTTP response is an auth-related error.
+    Invalidates an auth cache if an HTTP response is an auth-related error.
 
-    :param refresh_auth_info: An Effect that invalidates or clears out any
-        cached auth information that auth_request's get_auth_headers function
-        returns.
-    :param tuple reauth_codes: integer HTTP codes which should cause a refresh.
+    :param invalidate_auth: An Effect that invalidates any cached auth
+        information that auth_request's get_auth_headers Effect returns.
+    :param tuple reauth_codes: integer HTTP codes which should cause an auth
+        invalidation.
     """
     response, content = result
     if response.code in reauth_codes:
-        return refresh_auth_info.on(success=lambda ignored: result)
+        return invalidate_auth.on(success=lambda ignored: result)
     else:
         return result
 
 
 def request_with_auth(get_request,
                       get_auth_headers,
-                      refresh_auth_info,
+                      invalidate_auth,
                       headers=None, reauth_codes=(401, 403)):
     """
     Get a request that will perform book-keeping on cached auth info.
 
-    This composes the :func:`auth_request` and :func:`refresh_auth_on_error`
+    This composes the :func:`auth_request` and :func:`invalidate_auth_on_error`
     functions.
 
     :param get_auth_headers: As per :func:`auth_request`
-    :param refresh_auth_info: As per :func:`refresh_auth_on_error`
-    :param reauth_codes: As per :func:`refresh_auth_on_error`.
+    :param invalidate_auth: As per :func:`invalidate_auth_on_error`
+    :param reauth_codes: As per :func:`invalidate_auth_on_error`.
     """
-    if reauth_codes is None:
-        import pdb; pdb.set_trace()
     eff = auth_request(get_request, get_auth_headers, headers=headers)
-    return eff.on(success=partial(refresh_auth_on_error, reauth_codes,
-                                  refresh_auth_info))
+    return eff.on(success=partial(invalidate_auth_on_error, reauth_codes,
+                                  invalidate_auth))
 
 
 def check_status(success_codes, result):
