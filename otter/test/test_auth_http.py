@@ -4,7 +4,7 @@ import json
 
 from twisted.trial.unittest import SynchronousTestCase
 
-from effect.testing import resolve_effect, resolve_stubs
+from effect.testing import resolve_effect
 
 from twisted.internet.defer import succeed
 

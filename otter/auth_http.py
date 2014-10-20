@@ -6,9 +6,6 @@ from functools import partial
 
 from effect import Effect, FuncIntent
 
-from toolz.functoolz import compose
-from toolz.dicttoolz import merge
-
 from otter.util.pure_http import (
     get_request, request_with_auth, check_status)
 from otter.util.http import headers
@@ -59,7 +56,7 @@ def get_request_func(authenticator, tenant_id, log):
             headers=headers,
             reauth_codes=reauth_codes,
         ).on(partial(check_status, success_codes)
-        ).on(lambda result: result[1]
-        ).on(json.loads)
+             ).on(lambda result: result[1]
+                  ).on(json.loads)
 
     return request

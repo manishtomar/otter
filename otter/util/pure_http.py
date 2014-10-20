@@ -6,11 +6,9 @@ from functools import partial, wraps
 from effect import Effect
 from characteristic import attributes
 from toolz.dicttoolz import merge
-from toolz.functoolz import compose
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from otter.util import logging_treq
-from otter.util.fp import wrappers
 from otter.util.http import APIError
 
 

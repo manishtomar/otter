@@ -130,7 +130,8 @@ class GetMetricsTests(SynchronousTestCase):
             side_effect=lambda t, a, n, r, c: lambda: t)
         self.mock_gsgs = patch(
             self, 'otter.metrics.get_scaling_group_servers',
-            side_effect=lambda request, server_predicate=None: Effect(ConstantIntent(self.tenant_servers[request()])))
+            side_effect=lambda request,
+            server_predicate=None: Effect(ConstantIntent(self.tenant_servers[request()])))
 
     def test_get_tenant_metrics(self):
         """

@@ -1,12 +1,10 @@
 """Tests for otter.util.pure_http"""
 
-import json
-
 from twisted.trial.unittest import SynchronousTestCase
 
 from testtools import TestCase
 
-from effect.testing import StubIntent, resolve_effect, resolve_stubs
+from effect.testing import StubIntent, resolve_stubs
 from effect.twisted import perform
 from effect import Effect, ConstantIntent, FuncIntent
 
@@ -77,6 +75,7 @@ class RequestWithAuthTests(TestCase):
     """Tests for :func:`request_with_auth`"""
 
     def setUp(self):
+        """Save auth and invalidate effects."""
         super(RequestWithAuthTests, self).setUp()
         self.invalidations = []
         invalidate = lambda: self.invalidations.append(True)
@@ -151,10 +150,15 @@ class RequestWithAuthTests(TestCase):
         self.assertEqual(resolve_stubs(eff), badauth)
         self.assertEqual(self.invalidations, [True])
 
+
 class BindRootTests(TestCase):
     """Tests for :func:`bind_root`"""
 
     def test_bind_root(self):
-        get_request = lambda m, u, headers=None, data=None, log=None: u
+        """
+        :func:`bind_root` returns a new request function that appends any
+        passed URL paths onto the root URL.
+        """
         request = bind_root(get_request, "http://slashdot.org/")
-        self.assertEqual(request("get", "foo"), "http://slashdot.org/foo")
+        self.assertEqual(request("get", "foo").intent.url,
+                         "http://slashdot.org/foo")
