@@ -4,21 +4,26 @@ Integration point for HTTP clients in otter.
 import json
 from functools import partial
 
-from effect import Effect, FuncIntent
+from effect import Effect, FuncIntent, Constant
+
+from twisted.internet.task import deferLater
+from twisted.python.failure import Failure
 
 from otter.util.pure_http import (
     get_request, request_with_auth, check_status)
 from otter.util.http import headers
+from otter.util.retry import compose_retries, retry_times
 
 
 def get_request_func(authenticator, tenant_id, log):
     """
-    Return a pure_http.Request-returning function decorated with:
+    Return a pure_http.Request-returning function extended with:
 
     - authentication for Rackspace APIs
     - HTTP status code checking
     - JSON bodies and return values
     - returning only content of the result, not response objects
+    - logging
     - TODO: retries
     """
     unsafe_auth = partial(authenticator.authenticate_tenant, tenant_id, log=log)
@@ -60,3 +65,37 @@ def get_request_func(authenticator, tenant_id, log):
                   ).on(json.loads)
 
     return request
+
+
+def should_retry(clock, can_retry, next_interval, e):
+    """
+    Determine whether an HTTP request should be retried.
+
+    After the first three parameters are curried, this function is appropriate
+    to pass as the 'should_retry' parameter to :func:`effect.retry.retry`.
+
+    :param clock: a reactor
+    :param can_retry: a pure function of Failure -> bool that indicates whether
+        a retry should be performed.
+    :param next_interval: a potentially impure function that returns an
+        interval to wait for the next retry attempt.
+    :param tuple e: an exception tuple
+    """
+    # - limit number of retries
+    # - exponentially back-off in time
+    # - consider the response code? need use cases.
+    #   - metrics retries on any API error.
+    #   - most likely *any* GET request retries on API error,
+    #   - ... unless the caller wants to know about a 404.
+    times = retry_times(5)
+    if can_retry:
+        can_retry = compose_retries(times, can_retry)
+    else:
+        can_retry = times
+
+    if can_retry(Failure(e[1], e[0], e[2])):
+        # ok, we can retry! sleep for an interval first.
+        later = lambda: deferLater(clock, next_interval(), lambda: True)
+        return Effect(FuncIntent(later))
+    else:
+        return Effect(Constant(False))

@@ -40,6 +40,9 @@ metrics_log = otter_log.bind(system='otter.metrics')
 
 
 def make_request(tenant_id, authenticator, nova_service, region, clock):
+    """
+    Make a request function appropriate for use in metrics-fetching functions.
+    """
     return lambda method, path: None
 
 
