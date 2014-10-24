@@ -1,7 +1,6 @@
 """Tests for otter.auth_http."""
 
 import json
-import sys
 
 from effect.testing import resolve_effect
 from effect import Delay

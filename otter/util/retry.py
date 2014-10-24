@@ -4,7 +4,7 @@ Module that provides retrying-at-a-particular-interval functionality.
 
 import random
 
-from effect import Effect, Delay
+from effect import Effect, Delay, ConstantIntent
 
 from twisted.internet import defer
 from twisted.python.failure import Failure

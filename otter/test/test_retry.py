@@ -430,3 +430,11 @@ class ShouldRetryEffectTests(SynchronousTestCase):
         should_retry_effect(can_retry, lambda: 1, e)
         [f] = failures
         self.assertEqual((f.type, f.value, f.tb), e)
+
+    def test_no_retry(self):
+        """
+        When the can_retry function returns False, should_retry_effect
+        returns an effect of False.
+        """
+        eff = should_retry_effect(lambda f: False, lambda: 1, self._get_exc())
+        self.assertEqual(resolve_effect(eff, eff.intent.result), False)

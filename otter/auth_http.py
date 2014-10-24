@@ -4,9 +4,7 @@ Integration point for HTTP clients in otter.
 import json
 from functools import partial, wraps
 
-from effect import Effect, FuncIntent, ConstantIntent, Delay
-
-from twisted.python.failure import Failure
+from effect import Effect, FuncIntent
 
 from otter.util.pure_http import (
     get_request, request_with_auth, check_status, bind_root)
