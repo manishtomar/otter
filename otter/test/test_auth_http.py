@@ -3,7 +3,6 @@
 import json
 
 from effect.testing import resolve_effect
-from effect import Delay
 from effect.twisted import perform
 
 from twisted.trial.unittest import SynchronousTestCase
