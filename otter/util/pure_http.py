@@ -9,7 +9,7 @@ from toolz.dicttoolz import merge
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from otter.util import logging_treq
-from otter.util.http import APIError
+from otter.util.http import APIError, append_segments
 
 
 @attributes(['method', 'url', 'headers', 'data', 'log'],
@@ -105,5 +105,5 @@ def bind_root(request_func, root):
     """
     @wraps(request_func)
     def request(method, url, *args, **kwargs):
-        return request_func(method, root + url, *args, **kwargs)
+        return request_func(method, append_segments(root, url), *args, **kwargs)
     return request
