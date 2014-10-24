@@ -94,30 +94,3 @@ def bind_service(request_func, tenant_id, authenticator, service_name, region,
             return bound_request(*args, **kwargs)
         return eff.on(got_auth)
     return service_request
-
-
-def should_retry(can_retry, next_interval, e):
-    """
-    Determine whether an Effect should be retried, using abstractions available
-    in the :obj:`otter.retry` module.
-
-    After currying the first arguments, this function is suitable for
-    the ``should_retry`` parameter of :func:`effect.retry.retry`.
-
-    Even though this function returns an Effect, it is impure,
-    since it calls ``can_retry`` and ``next_interval``, which themselves
-    are often impure, and because it has a built-in limit of 5 calls.
-
-    :param can_retry: a function of Failure -> bool that indicates whether
-        a retry should be performed.
-    :param next_interval: a potentially impure function that returns an
-        interval to wait for the next retry attempt.
-    :param tuple e: an exception tuple
-    """
-    if can_retry(Failure(e[1], e[0], e[2])):
-        # ok, we can retry! sleep for an interval first.
-        interval = next_interval()
-        delay = Effect(Delay(interval))
-        return delay.on(lambda r: True)
-    else:
-        return Effect(ConstantIntent(False))
