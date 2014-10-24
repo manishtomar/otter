@@ -21,7 +21,6 @@ def get_request_func(authenticator, tenant_id, log):
     - JSON bodies and return values
     - returning only content of the result, not response objects
     - logging
-    - TODO: retries
     """
     def unsafe_auth():
         d = authenticator.authenticate_tenant(tenant_id, log=log)
