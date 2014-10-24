@@ -2,17 +2,16 @@
 Integration point for HTTP clients in otter.
 """
 import json
-from functools import partial
+from functools import partial, wraps
 
 from effect import Effect, FuncIntent, ConstantIntent, Delay
 
-from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
 
 from otter.util.pure_http import (
-    get_request, request_with_auth, check_status)
+    get_request, request_with_auth, check_status, bind_root)
 from otter.util.http import headers
-from otter.util.retry import compose_retries, retry_times
+from otter.worker.launch_server_v1 import public_endpoint_url
 
 
 def get_request_func(authenticator, tenant_id, log):
@@ -26,7 +25,9 @@ def get_request_func(authenticator, tenant_id, log):
     - logging
     - TODO: retries
     """
-    unsafe_auth = partial(authenticator.authenticate_tenant, tenant_id, log=log)
+    def unsafe_auth():
+        d = authenticator.authenticate_tenant(tenant_id, log=log)
+        return d.addCallback(lambda r: r[0])
     unsafe_invalidate = partial(authenticator.invalidate, tenant_id)
     auth_headers = Effect(FuncIntent(unsafe_auth)).on(success=headers)
     invalidate = Effect(FuncIntent(unsafe_invalidate))
@@ -66,6 +67,33 @@ def get_request_func(authenticator, tenant_id, log):
              ).on(lambda result: result[1]
                   ).on(json.loads)
     return request
+
+
+def bind_service(request_func, tenant_id, authenticator, service_name, region,
+                 log):
+    """
+    Bind a request function to a particular Rackspace/OpenStack service and
+    tenant.
+    """
+    # We authenticate_tenant here, which is a duplicate to the one in the
+    # underlying request_func, but the authenticators are always caching in
+    # practice.
+    eff = Effect(FuncIntent(partial(authenticator.authenticate_tenant, tenant_id, log)))
+
+    @wraps(request_func)
+    def service_request(*args, **kwargs):
+        """
+        Perform an HTTP request similar to the request from
+        :func:`get_request_func`, with the additional feature of being bound to
+        a specific Rackspace/OpenStack service, so that the path can be
+        relative to the service endpoint.
+        """
+        def got_auth((token, catalog)):
+            endpoint = public_endpoint_url(catalog, service_name, region)
+            bound_request = bind_root(request_func, endpoint)
+            return bound_request(*args, **kwargs)
+        return eff.on(got_auth)
+    return service_request
 
 
 def should_retry(can_retry, next_interval, e):

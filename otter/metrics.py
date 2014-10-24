@@ -11,6 +11,7 @@ from collections import namedtuple
 import time
 
 from effect.twisted import perform
+from effect.retry import retry
 
 from twisted.internet import task, defer
 from twisted.internet.endpoints import clientFromString
@@ -33,17 +34,26 @@ from otter.worker.launch_server_v1 import public_endpoint_url
 
 from otter.convergence import get_scaling_group_servers
 from otter.util.http import append_segments, headers, check_success
+from otter.auth_http import get_service_request, should_retry
+from otter.retry import retry_times, exponential_backoff_interval
 from otter.log import log as otter_log
 
 
 metrics_log = otter_log.bind(system='otter.metrics')
 
 
-def make_request(tenant_id, authenticator, nova_service, region, clock):
+def get_metrics_request(tenant_id, authenticator, service_name, region):
     """
-    Make a request function appropriate for use in metrics-fetching functions.
+    Get a Nova request function bound to the tenant that has a retry policy.
     """
-    return lambda method, path: None
+    request = get_service_request(tenant_id, authenticator, service_name,
+                                  region, metrics_log)
+
+    def metrics_request(method, url):
+        return retry(
+            request(method, url),
+            partial(should_retry, retry_times(5), exponential_backoff_interval(2)))
+    return metrics_request
 
 
 @defer.inlineCallbacks
@@ -143,8 +153,8 @@ def check_diff_configs(client, authenticator, nova_service, region, clock=None):
     defs = []
     sem = defer.DeferredSemaphore(10)
     for tenant_id, groups in tenanted_groups.iteritems():
-        requester = make_request(tenant_id, authenticator,
-                                 nova_service, region, clock)
+        requester = get_metrics_request(tenant_id, authenticator, nova_service,
+                                        region)
         d = sem.run(
             perform,
             get_scaling_group_servers(
@@ -204,8 +214,8 @@ def get_all_metrics(cass_groups, authenticator, nova_service, region,
     defs = []
     group_metrics = []
     for tenant_id, groups in tenanted_groups.iteritems():
-        requester = make_request(tenant_id, authenticator,
-                                 nova_service, region, clock)
+        requester = get_metrics_request(tenant_id, authenticator, nova_service,
+                                        region)
         d = sem.run(
             perform,
             get_scaling_group_servers(
