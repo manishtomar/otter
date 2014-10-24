@@ -125,9 +125,9 @@ class GetMetricsTests(SynchronousTestCase):
         """
         self.tenant_servers = {}
         # XXX lol radix this is so horrific
-        self.mock_make_request = patch(
-            self, 'otter.metrics.make_request',
-            side_effect=lambda t, a, n, r, c: lambda: t)
+        self.mock_get_metrics_request = patch(
+            self, 'otter.metrics.get_metrics_request',
+            side_effect=lambda t, a, n, r: lambda: t)
         self.mock_gsgs = patch(
             self, 'otter.metrics.get_scaling_group_servers',
             side_effect=lambda request,

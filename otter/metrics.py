@@ -34,8 +34,8 @@ from otter.worker.launch_server_v1 import public_endpoint_url
 
 from otter.convergence import get_scaling_group_servers
 from otter.util.http import append_segments, headers, check_success
-from otter.auth_http import get_service_request, should_retry
-from otter.retry import retry_times, exponential_backoff_interval
+from otter.auth_http import get_request_func, bind_service
+from otter.util.retry import retry_times, exponential_backoff_interval, should_retry_effect
 from otter.log import log as otter_log
 
 
@@ -46,13 +46,14 @@ def get_metrics_request(tenant_id, authenticator, service_name, region):
     """
     Get a Nova request function bound to the tenant that has a retry policy.
     """
-    request = get_service_request(tenant_id, authenticator, service_name,
-                                  region, metrics_log)
+    request = get_request_func(authenticator, tenant_id, metrics_log)
+    request = bind_service(request, tenant_id, authenticator, service_name,
+                           region, metrics_log)
 
     def metrics_request(method, url):
         return retry(
             request(method, url),
-            partial(should_retry, retry_times(5), exponential_backoff_interval(2)))
+            partial(should_retry_effect, retry_times(5), exponential_backoff_interval(2)))
     return metrics_request
 
 
