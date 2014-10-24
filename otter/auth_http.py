@@ -4,7 +4,7 @@ Integration point for HTTP clients in otter.
 import json
 from functools import partial
 
-from effect import Effect, FuncIntent, Constant
+from effect import Effect, FuncIntent, ConstantIntent, Delay
 
 from twisted.internet.task import deferLater
 from twisted.python.failure import Failure
@@ -35,6 +35,8 @@ def get_request_func(authenticator, tenant_id, log):
     def request(method, url, headers=None, data=None, log=default_log,
                 reauth_codes=(401, 403),
                 success_codes=(200,)):
+        # TODO: We may want to parameterize some retry options *here*, but only
+        # if it's really necessary.
         """
         Make an HTTP request, with a bunch of awesome behavior!
 
@@ -63,39 +65,31 @@ def get_request_func(authenticator, tenant_id, log):
         ).on(partial(check_status, success_codes)
              ).on(lambda result: result[1]
                   ).on(json.loads)
-
     return request
 
 
-def should_retry(clock, can_retry, next_interval, e):
+def should_retry(can_retry, next_interval, e):
     """
-    Determine whether an HTTP request should be retried.
+    Determine whether an Effect should be retried, using abstractions available
+    in the :obj:`otter.retry` module.
 
-    After the first three parameters are curried, this function is appropriate
-    to pass as the 'should_retry' parameter to :func:`effect.retry.retry`.
+    After currying the first arguments, this function is suitable for
+    the ``should_retry`` parameter of :func:`effect.retry.retry`.
 
-    :param clock: a reactor
-    :param can_retry: a pure function of Failure -> bool that indicates whether
+    Even though this function returns an Effect, it is impure,
+    since it calls ``can_retry`` and ``next_interval``, which themselves
+    are often impure, and because it has a built-in limit of 5 calls.
+
+    :param can_retry: a function of Failure -> bool that indicates whether
         a retry should be performed.
     :param next_interval: a potentially impure function that returns an
         interval to wait for the next retry attempt.
     :param tuple e: an exception tuple
     """
-    # - limit number of retries
-    # - exponentially back-off in time
-    # - consider the response code? need use cases.
-    #   - metrics retries on any API error.
-    #   - most likely *any* GET request retries on API error,
-    #   - ... unless the caller wants to know about a 404.
-    times = retry_times(5)
-    if can_retry:
-        can_retry = compose_retries(times, can_retry)
-    else:
-        can_retry = times
-
     if can_retry(Failure(e[1], e[0], e[2])):
         # ok, we can retry! sleep for an interval first.
-        later = lambda: deferLater(clock, next_interval(), lambda: True)
-        return Effect(FuncIntent(later))
+        interval = next_interval()
+        delay = Effect(Delay(interval))
+        return delay.on(lambda r: True)
     else:
-        return Effect(Constant(False))
+        return Effect(ConstantIntent(False))

@@ -1,15 +1,18 @@
 """Tests for otter.auth_http."""
 
+from functools import partial
 import json
-
-from twisted.trial.unittest import SynchronousTestCase
+import sys
 
 from effect.testing import resolve_effect
+from effect import Delay, FuncIntent
 
+from twisted.internet.task import Clock
+from twisted.trial.unittest import SynchronousTestCase
 from twisted.internet.defer import succeed
 
 from otter.util.http import headers, APIError
-from otter.auth_http import get_request_func
+from otter.auth_http import get_request_func, should_retry
 from otter.test.utils import stub_pure_response
 from otter.util.pure_http import Request
 
@@ -87,3 +90,39 @@ class GetRequestFuncTests(SynchronousTestCase):
                                 stub_pure_response(json.dumps(output_json)))
         self.assertEqual(next_eff.intent.data, json.dumps(input_json))
         self.assertEqual(result, output_json)
+
+
+class ShouldRetryTests(SynchronousTestCase):
+    """Tests for :func:`should_retry`."""
+
+    def _get_exc(self):
+        """Get an exception tuple."""
+        try:
+            1 / 0
+        except:
+            return sys.exc_info()
+
+    def test_should_retry_indeed(self):
+        """
+        :func:`should_retry` returns a function that returns an Effect of
+        True when retrying is allowed, after delaying based on the
+        ``next_interval`` argument.
+        """
+        eff = should_retry(lambda f: True, lambda: 1, self._get_exc())
+        self.assertEqual(eff.intent, Delay(1))
+        result = resolve_effect(eff, None)
+        self.assertTrue(result)
+
+    def test_failure_to_user_function(self):
+        """
+        The ``can_retry`` argument gets passed a failure correctly constructed
+        out of the exception passed.
+        """
+        e = self._get_exc()
+        failures = []
+        def can_retry(f):
+            failures.append(f)
+            return True
+        eff = should_retry(can_retry, lambda: 1, e)
+        [f] = failures
+        self.assertEqual((f.type, f.value, f.tb), e)
