@@ -37,7 +37,7 @@ def get_request_func(authenticator, tenant_id, log, service_mapping, region):
     impure_invalidate = partial(authenticator.invalidate, tenant_id)
     auth_eff = Effect(FuncIntent(impure_auth))
     invalidate_eff = Effect(FuncIntent(impure_invalidate))
-    default_log = log
+    default_log = log.bind(tenant_id=tenant_id, region=region)
 
     @wraps(request)
     def service_request(service_type, method, url, headers=None, data=None,

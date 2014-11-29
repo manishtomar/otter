@@ -44,7 +44,7 @@ class GetRequestFuncTests(SynchronousTestCase):
 
     def setUp(self):
         """Save some common parameters."""
-        self.log = object()
+        self.log = mock_log()
         self.authenticator = FakeCachingAuthenticator()
         self.request = get_request_func(
             self.authenticator, 1, self.log,
