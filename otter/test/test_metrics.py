@@ -27,7 +27,8 @@ from otter.metrics import (
 from otter.test.test_auth import identity_config
 from otter.auth import IAuthenticator
 from otter.test.utils import (
-    patch, StubTreq2, matches, IsCallable, CheckFailure, mock_log, resolve_retry_stubs)
+    patch, StubTreq2, matches, IsCallable, CheckFailure, mock_log, resolve_retry_stubs,
+    Provides)
 from otter.util.http import headers
 from otter.log import BoundLog
 

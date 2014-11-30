@@ -6,7 +6,7 @@ from functools import partial
 
 from characteristic import attributes
 
-from effect import Effect, ConstantIntent
+from effect import Effect, ConstantIntent, parallel
 from effect.testing import StubIntent, resolve_stubs
 
 from pyrsistent import pmap, pbag, pset, s
