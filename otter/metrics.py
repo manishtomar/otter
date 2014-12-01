@@ -382,5 +382,8 @@ def makeService(config):
 if __name__ == '__main__':
     config = json.load(open(sys.argv[1]))
     config['services'] = {'cloudServersOpenStack': 'cloudServersOpenStack'}
+    from twisted.python.log import startLoggingWithObserver
+    from otter.log.setup import observer_factory_debug
+    startLoggingWithObserver(observer_factory_debug())
     # TODO: Take _print as cmd-line arg and pass it.
     task.react(collect_metrics, (config, None, None, True))
