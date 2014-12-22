@@ -131,7 +131,8 @@ class SupervisorService(object, Service):
                                                   request_func,
                                                   scaling_group,
                                                   launch_config['args'],
-                                                  undo)
+                                                  undo,
+                                                  transaction_id)
 
         d.addCallback(got_request_func)
 

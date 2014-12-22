@@ -247,8 +247,8 @@ class _NoCreatedServerFound(Exception):
         self.original = original_failure
 
 
-def create_server(server_endpoint, auth_token, server_config, log=None,
-                  clock=None, retries=3, create_failure_delay=5, _treq=None):
+def create_server(server_endpoint, auth_token, server_config, transaction_id,
+                  log=None, clock=None, retries=3, create_failure_delay=5, _treq=None):
     """
     Create a new server.  If there is an error from Nova from this call,
     checks to see if the server was created anyway.  If not, will retry the
@@ -329,7 +329,8 @@ def create_server(server_endpoint, auth_token, server_config, log=None,
 
         If not, and if no further errors occur, server creation can be retried.
         """
-        d = create_server_sem.run(_treq.post, path, headers=headers(auth_token),
+        d = create_server_sem.run(_treq.post, path,
+                                  headers=headers(auth_token, transaction_id),
                                   data=json.dumps({'server': server_config}),
                                   log=log)
         d.addCallback(check_success, [202], _treq=_treq)
@@ -658,7 +659,8 @@ def scrub_otter_metadata(log, auth_token, service_catalog, region, server_id,
             .addCallback(_treq.content))
 
 
-def launch_server(log, request_func, scaling_group, launch_config, undo, clock=None):
+def launch_server(log, request_func, scaling_group, launch_config,
+                  undo, transaction_id, clock=None):
     """
     Launch a new server given the launch config auth tokens and service catalog.
     Possibly adding the newly launched server to a load balancer.
@@ -727,7 +729,8 @@ def launch_server(log, request_func, scaling_group, launch_config, undo, clock=N
         return (server, [])
 
     def _create_server():
-        d = create_server(server_endpoint, auth_token, server_config, log=log)
+        d = create_server(server_endpoint, auth_token, server_config,
+                          transaction_id, log=log)
         d.addCallback(wait_for_server)
         d.addCallback(add_lb)
         return d
