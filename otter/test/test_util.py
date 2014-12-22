@@ -174,6 +174,19 @@ class HTTPUtilityTests(SynchronousTestCase):
         """
         self.assertNotIn('x-auth-token', headers())
 
+    def test_headers_sets_request_id(self):
+        """
+        headers will set 'otter-request-id' based on request_id being sent
+        """
+        self.assertEqual(
+            headers('at', 'tid')['otter-request-id'], ['tid'])
+
+    def test_headers_optional_request_id(self):
+        """
+        headers will not set 'otter-request-id' if request_id is not sent
+        """
+        self.assertNotIn('otter-request-id', headers('auth-token'))
+
     def test_connection_error(self):
         """
         A :class:`RequestError` instantiated with a netloc and a wrapped
