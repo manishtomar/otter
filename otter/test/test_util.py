@@ -152,14 +152,6 @@ class HTTPUtilityTests(SynchronousTestCase):
         self.assertEqual(
             headers('any')['accept'], ['application/json'])
 
-    def test_headers_sets_auth_token(self):
-        """
-        headers will set the X-Auth-Token header based on it's auth_token
-        argument.
-        """
-        self.assertEqual(
-            headers('my-auth-token')['x-auth-token'], ['my-auth-token'])
-
     def test_headers_can_be_http_headers(self):
         """
         headers will produce a result that can be passed to
@@ -167,25 +159,40 @@ class HTTPUtilityTests(SynchronousTestCase):
         """
         self.assertIsInstance(Headers(headers('my-auth-token')), Headers)
 
+    def _test_optional_header(self, _headers, header, value):
+        if value is None:
+            self.assertNotIn(header, _headers)
+        else:
+            self.assertEqual(_headers[header], [value])
+
+    def test_headers_sets_auth_token(self):
+        """
+        headers will set the X-Auth-Token header based on it's auth_token
+        argument.
+        """
+        self._test_optional_header(
+            headers('my-auth-token'), 'x-auth-token', 'my-auth-token')
+
     def test_headers_optional_auth_token(self):
         """
         headers will produce a dictionary without the x-auth-token header if no
         auth token is given.
         """
-        self.assertNotIn('x-auth-token', headers())
+        self._test_optional_header(headers(), 'x-auth-token', None)
 
-    def test_headers_sets_request_id(self):
+    def test_headers_sets_transaction_id(self):
         """
-        headers will set 'otter-request-id' based on request_id being sent
+        headers will set 'otter-transaction-id' based on transaction_id being sent
         """
-        self.assertEqual(
-            headers('at', 'tid')['otter-request-id'], ['tid'])
+        self._test_optional_header(
+            headers(transaction_id='tid'), 'otter-transaction-id', 'tid')
 
-    def test_headers_optional_request_id(self):
+    def test_headers_optional_transaction_id(self):
         """
-        headers will not set 'otter-request-id' if request_id is not sent
+        headers will not set 'otter-transaction-id' if transaction_id is not sent
         """
-        self.assertNotIn('otter-request-id', headers('auth-token'))
+        self._test_optional_header(headers('at'), 'otter-transaction-id', None)
+
 
     def test_connection_error(self):
         """

@@ -203,23 +203,23 @@ def check_success(response, success_codes, _treq=None):
     return response
 
 
-def headers(auth_token=None, request_id=None):
+def headers(auth_token=None, request_id=None, transaction_id=None):
     """
     Generate an appropriate set of headers given an auth_token.
 
     :param str auth_token: The auth_token or None.
-    :param str request_id: A unique ID added to list of headers
+    :param str request_id: A per request unique ID added to list of headers
+    :param str transaction_id: A per transaction unique ID added to list of headers
     :return: A dict of common headers.
     """
     h = {'content-type': ['application/json'],
          'accept': ['application/json'],
          'User-Agent': ['OtterScale/0.0']}
 
-    if auth_token is not None:
-        h['x-auth-token'] = [auth_token]
-
-    if request_id is not None:
-        h['otter-request-id'] = [request_id]
+    for name, value in zip(['x-auth-token', 'otter-request-id', 'otter-transaction-id'],
+                          [auth_token, request_id, transaction_id]):
+        if value is not None:
+            h[name] = [value]
 
     return h
 
