@@ -22,14 +22,16 @@ def _log_request(treq_call, url, **kwargs):
     clock = kwargs.pop('clock', reactor)
     log = kwargs.pop('log', default_log)
     method = kwargs.get('method', treq_call.__name__)
+    headers = kwargs.pop('headers', {})
 
     treq_transaction = str(uuid4())
     log = log.bind(system='treq.request', url=url, method=method,
                    treq_request_id=treq_transaction)
     start_time = clock.seconds()
+    headers['otter-request-id'] = [treq_transaction]
 
     log.msg("Request to {method} {url} starting.")
-    d = treq_call(url=url, **kwargs)
+    d = treq_call(url=url, headers=headers, **kwargs)
 
     timeout_deferred(d, 45, clock)
 
