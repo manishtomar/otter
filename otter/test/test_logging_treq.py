@@ -37,6 +37,7 @@ class LoggingTreqTest(SynchronousTestCase):
         self.response = mock.MagicMock(code=204, headers={'1': '2'})
 
         patch(self, 'otter.util.logging_treq.treq', self.treq)
+        patch(self, 'otter.util.logging_treq.uuid4', mock.Mock(spec=[], return_value='myuuid'))
 
         self.url = 'myurl'
 
@@ -46,11 +47,11 @@ class LoggingTreqTest(SynchronousTestCase):
         """
         self.assertEqual(self.log.msg.mock_calls, [
             mock.call(mock.ANY, url=self.url, system="treq.request",
-                      method=method, treq_request_id=mock.ANY),
+                      method=method, treq_request_id='myuuid'),
             mock.call(
                 mock.ANY, url=self.url, status_code=status, headers={'1': '2'},
                 system="treq.request", request_time=request_time, method=method,
-                treq_request_id=mock.ANY)
+                treq_request_id='myuuid')
         ])
 
     def _assert_failure_logging(self, method, exception_type, request_time):
@@ -59,11 +60,11 @@ class LoggingTreqTest(SynchronousTestCase):
         """
         self.assertEqual(self.log.msg.mock_calls, [
             mock.call(mock.ANY, url=self.url, system="treq.request",
-                      method=method, treq_request_id=mock.ANY),
+                      method=method, treq_request_id='myuuid'),
             mock.call(
                 mock.ANY, url=self.url, reason=CheckFailure(exception_type),
                 system="treq.request", request_time=request_time, method=method,
-                treq_request_id=mock.ANY)
+                treq_request_id='myuuid')
         ])
 
     def test_request(self):
@@ -73,7 +74,8 @@ class LoggingTreqTest(SynchronousTestCase):
         d = logging_treq.request('patch', self.url, headers={}, data='',
                                  log=self.log, clock=self.clock)
         self.treq.request.assert_called_once_with(
-            method='patch', url=self.url, headers={}, data='')
+            method='patch', url=self.url, headers={'otter-request-id': ['myuuid']},
+            data='')
         self.assertNoResult(d)
 
         self.clock.advance(5)
@@ -82,6 +84,21 @@ class LoggingTreqTest(SynchronousTestCase):
         self.assertIs(self.successResultOf(d), self.response)
         self._assert_success_logging('patch', 204, 5)
 
+    def test_request_updates_headers(self):
+        """
+        When calling request it appends 'otter-request-id' header and
+        does not lose sent headers
+        """
+        d = logging_treq.request('patch', self.url, headers={'a': [2]}, data='',
+                                 log=self.log, clock=self.clock)
+        self.treq.request.assert_called_once_with(
+            method='patch', url=self.url,
+            headers={'otter-request-id': ['myuuid'], 'a': [2]},
+            data='')
+        self.treq.request.return_value.callback(self.response)
+        self.assertIs(self.successResultOf(d), self.response)
+        self._assert_success_logging('patch', 204, 0)
+
     def test_request_failure(self):
         """
         On failed call to request, failure is returned and request logged
@@ -89,7 +106,7 @@ class LoggingTreqTest(SynchronousTestCase):
         d = logging_treq.request('patch', self.url, headers={}, data='',
                                  log=self.log, clock=self.clock)
         self.treq.request.assert_called_once_with(
-            method='patch', url=self.url, headers={}, data='')
+            method='patch', url=self.url, headers={'otter-request-id': ['myuuid']}, data='')
         self.assertNoResult(d)
 
         self.clock.advance(5)
@@ -105,7 +122,7 @@ class LoggingTreqTest(SynchronousTestCase):
         d = logging_treq.request('patch', self.url, headers={}, data='',
                                  log=self.log, clock=self.clock)
         self.treq.request.assert_called_once_with(
-            method='patch', url=self.url, headers={}, data='')
+            method='patch', url=self.url, headers={'otter-request-id': ['myuuid']}, data='')
         self.assertNoResult(d)
 
         self.clock.advance(45)
@@ -121,7 +138,8 @@ class LoggingTreqTest(SynchronousTestCase):
                              clock=self.clock)
 
         treq_function = getattr(self.treq, method)
-        treq_function.assert_called_once_with(url=self.url, headers={}, data='')
+        treq_function.assert_called_once_with(
+            url=self.url, headers={'otter-request-id': ['myuuid']}, data='')
 
         self.assertNoResult(d)
 
@@ -140,7 +158,8 @@ class LoggingTreqTest(SynchronousTestCase):
                              clock=self.clock)
 
         treq_function = getattr(self.treq, method)
-        treq_function.assert_called_once_with(url=self.url, headers={}, data='')
+        treq_function.assert_called_once_with(
+            url=self.url, headers={'otter-request-id': ['myuuid']}, data='')
         self.assertNoResult(d)
 
         self.clock.advance(5)
@@ -158,7 +177,8 @@ class LoggingTreqTest(SynchronousTestCase):
                              clock=self.clock)
 
         treq_function = getattr(self.treq, method)
-        treq_function.assert_called_once_with(url=self.url, headers={}, data='')
+        treq_function.assert_called_once_with(
+            url=self.url, headers={'otter-request-id': ['myuuid']}, data='')
         self.assertNoResult(d)
 
         self.clock.advance(45)
