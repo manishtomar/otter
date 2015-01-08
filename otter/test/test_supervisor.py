@@ -78,8 +78,6 @@ class SupervisorTests(SynchronousTestCase):
         self.undo = self.InMemoryUndoStack.return_value
         self.undo.rewind.return_value = succeed(None)
 
-        self.get_request_func = patch(self, 'otter.supervisor.get_request_func')
-
     def test_provides_ISupervisor(self):
         """
         SupervisorService provides ISupervisor
@@ -88,29 +86,17 @@ class SupervisorTests(SynchronousTestCase):
 
     def assertCorrectRequestFunc(self, request_func):
         """
-        Asserts that the given request_func is correct.
-
-        "Correct" here is mutable: ideally it will eventually mean "it
-        is literally the return value of :func:`get_request_func`", but
-        for now it is that return value, plus a few attributes to
-        support old code that hasn't been updated to use pure_http
-        yet. This also verifies that :func:`get_request_func` was called
-        with the appropriate arguments, since that obviously also
-        determines if the given ``request_func`` will work correctly.
+        Assert that the provided ``request_func`` object has a bunch of
+        attributes useful for making HTTP requests to specific services.
 
         :param callable request_func: The request function to check.
         """
-        self.assertIdentical(request_func, self.get_request_func.return_value)
-        self.get_request_func.assert_called_with(self.authenticator,
-                                                 self.group.tenant_id,
-                                                 mock.ANY,
-                                                 self.service_mapping,
-                                                 self.region)
-
         self.assertEqual(request_func.auth_token, self.auth_token)
         self.assertEqual(request_func.service_catalog, self.service_catalog)
         self.assertEqual(request_func.region, "ORD")
         self.assertEqual(request_func.lb_region, "ORD")
+        self.assertEqual(request_func.authenticator, self.authenticator)
+        self.assertEqual(request_func.service_mapping, self.service_mapping)
 
 
 class HealthCheckTests(SupervisorTests):

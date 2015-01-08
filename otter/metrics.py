@@ -31,7 +31,6 @@ from otter.auth import generate_authenticator, authenticate_user, extract_token
 from otter.auth import public_endpoint_url
 from otter.constants import get_service_mapping
 from otter.effect_dispatcher import get_full_dispatcher
-from otter.http import get_request_func
 from otter.convergence.gathering import get_scaling_group_servers
 from otter.util.http import append_segments, headers, check_success
 from otter.util.fp import predicate_all
@@ -127,14 +126,12 @@ def get_tenant_metrics(tenant_id, scaling_groups, servers, _print=False):
     return metrics
 
 
-def get_all_metrics_effects(cass_groups, get_request_func_for_tenant,
-                            log, _print=False):
+def get_all_metrics_effects(cass_groups, log, _print=False):
     """
     Gather server data for and produce metrics for all groups across all tenants
     in a region
 
     :param iterable cass_groups: Groups as retrieved from cassandra
-    :param get_request_func_for_tenant: Function of tenant_id -> request function
     :param bool _print: Should the function print while processing?
 
     :return: ``list`` of :obj:`Effect` of (``list`` of :obj:`GroupMetrics`) or None
@@ -142,9 +139,7 @@ def get_all_metrics_effects(cass_groups, get_request_func_for_tenant,
     tenanted_groups = groupby(lambda g: g['tenantId'], cass_groups)
     effs = []
     for tenant_id, groups in tenanted_groups.iteritems():
-        request_func = get_request_func_for_tenant(tenant_id)
         eff = get_scaling_group_servers(
-            request_func,
             server_predicate=lambda s: s['status'] in ('ACTIVE', 'BUILD'))
         eff = eff.on(partial(get_tenant_metrics, tenant_id, groups, _print=_print))
         eff = eff.on(
@@ -181,12 +176,7 @@ def get_all_metrics(cass_groups, authenticator, service_mapping, region,
     """
     dispatcher = get_full_dispatcher(clock, authenticator, metrics_log,
                                      service_mapping, region)
-
-    def req_func_for_tenant(tenant_id):
-        # TODO: Get rid of this when we switch everything to ServiceRequest
-        return get_request_func(authenticator, tenant_id, metrics_log,
-                                service_mapping, region)
-    effs = get_all_metrics_effects(cass_groups, req_func_for_tenant, metrics_log, _print=_print)
+    effs = get_all_metrics_effects(cass_groups, metrics_log, _print=_print)
     d = _perform_limited_effects(dispatcher, effs, 10)
     d.addCallback(filter(lambda x: x is not None))
     return d.addCallback(lambda x: reduce(operator.add, x, []))

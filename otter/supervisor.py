@@ -10,7 +10,6 @@ from twisted.internet.defer import succeed
 from zope.interface import Interface, implementer
 
 from otter.models.interface import NoSuchScalingGroupError
-from otter.http import get_request_func
 from otter.log import audit
 from otter.util.config import config_value
 from otter.util.deferredutils import DeferredPool
@@ -89,18 +88,21 @@ class SupervisorService(object, Service):
         self.deferred_pool = DeferredPool()
         self.service_mapping = service_mapping
 
-    def _get_request_func(self, log, scaling_group):
+    def _get_request_stuff(self, log, scaling_group):
         """
-        Builds a request function for the given scaling group, adorned with
-        some attributes for backwards compatibility.
+        Builds a ball of mud of random data necessary to perform HTTP requests
+        for the given scaling group.
         """
         tenant_id = scaling_group.tenant_id
-        request_func = get_request_func(self.authenticator, tenant_id,
-                                        log, self.service_mapping,
-                                        self.region)
+        class RequestFunc(object):
+            pass
+
+        request_func = RequestFunc()
         lb_region = config_value('regionOverrides.cloudLoadBalancers')
         request_func.lb_region = lb_region or self.region
         request_func.region = self.region
+        request_func.authenticator = authenticator
+        request_func.service_mapping = self.service_mapping
 
         log.msg("Authenticating for tenant")
         d = self.authenticator.authenticate_tenant(tenant_id, log=log)
@@ -123,7 +125,7 @@ class SupervisorService(object, Service):
 
         undo = InMemoryUndoStack(self.coiterate)
 
-        d = self._get_request_func(log, scaling_group)
+        d = self._get_request_stuff(log, scaling_group)
 
         def got_request_func(request_func):
             log.msg("Executing launch config.")
@@ -166,7 +168,7 @@ class SupervisorService(object, Service):
         """
         log = log.bind(server_id=server['id'], tenant_id=scaling_group.tenant_id)
 
-        d = self._get_request_func(log, scaling_group)
+        d = self._get_request_stuff(log, scaling_group)
 
         def got_request_func(request_func):
             log.msg("Executing delete server.")

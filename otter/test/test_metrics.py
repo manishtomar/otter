@@ -190,11 +190,7 @@ class GetAllMetricsEffectsTests(SynchronousTestCase):
 
         tenant_servers = {'t1': servers_t1, 't2': servers_t2}
 
-        def get_bound_request_func(tenant_id):
-            def request_func(service_type, method, url, headers=None, data=None):
-                return Effect(Stub(Constant(tenant_servers[tenant_id])))
-            return request_func
-        effs = get_all_metrics_effects(groups, get_bound_request_func, mock_log())
+        effs = get_all_metrics_effects(groups, mock_log())
 
         # All of the HTTP requests are wrapped in retries, so unwrap them
         results = map(resolve_retry_stubs, effs)
@@ -213,18 +209,10 @@ class GetAllMetricsEffectsTests(SynchronousTestCase):
         log = mock_log()
         log.err.return_value = None
 
-        def get_bound_request_func(tenant_id):
-            def request_func(service_type, method, url, headers=None, data=None):
-                if tenant_id == 't1':
-                    return Effect(Stub(Constant({'servers': []})))
-                else:
-                    return Effect(Stub(Error(ZeroDivisionError('foo bar'))))
-            return request_func
-
         groups = [{'tenantId': 't1', 'groupId': 'g1', 'desired': 0},
                   {'tenantId': 't2', 'groupId': 'g2', 'desired': 0}]
 
-        effs = get_all_metrics_effects(groups, get_bound_request_func, log)
+        effs = get_all_metrics_effects(groups, log)
         results = map(resolve_retry_stubs, effs)
         self.assertEqual(
             results,
@@ -241,18 +229,9 @@ class GnarlyGetMetricsTests(SynchronousTestCase):
     """
 
     def setUp(self):
-        """Mock get_scaling_group_servers and get_request_func."""
+        """Mock get_scaling_group_servers."""
         self.tenant_servers = {}
-        # This is pretty nasty.
-
-        # get_request_func is being mocked to just return the tenant id,
-        # instead of a function. Nothing will call it, so it works.
-        # Then, get_scaling_group_servers is being mocked to expect the tenant
-        # ID instead of a request function, to use it to look up the server
-        # data to return.
-        self.mock_get_request_func = patch(
-            self, 'otter.metrics.get_request_func',
-            side_effect=lambda a, tenant_id, *args, **kwargs: tenant_id)
+        # TODO: RADIX: probably just mock service_request.
         self.mock_gsgs = patch(
             self, 'otter.metrics.get_scaling_group_servers',
             side_effect=lambda rf, server_predicate: (
@@ -284,17 +263,13 @@ class GnarlyGetMetricsTests(SynchronousTestCase):
         self.mock_gsgs.assert_any_call('t1', server_predicate=IsCallable())
         self.mock_gsgs.assert_any_call('t2', server_predicate=IsCallable())
 
-        self.mock_get_request_func.assert_any_call(
-            authenticator, 't1', metrics_log, self.service_mapping, 'r')
-        self.mock_get_request_func.assert_any_call(
-            authenticator, 't2', metrics_log, self.service_mapping, 'r')
 
     def test_ignore_error_results(self):
         """
         When get_all_metrics_effects returns a list containing a None, those elements are
         ignored.
         """
-        def mock_game(cass_groups, get_request_func_for_tenant, log, _print=False):
+        def mock_game(cass_groups, log, _print=False):
             return [Effect(Constant(None)),
                     Effect(Constant([GroupMetrics('t1', 'g1', 0, 0, 0)]))]
         mock_game = patch(self, 'otter.metrics.get_all_metrics_effects', side_effect=mock_game)

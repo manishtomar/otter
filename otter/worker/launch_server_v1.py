@@ -451,7 +451,7 @@ def add_to_load_balancer(log, request_func, lb_config, server_details, undo,
     elif lb_type == "RackConnectV3":
         lb_id = lb_config["loadBalancerId"]
         server_id = server_details["server"]["id"]
-        return add_to_rcv3(request_func, lb_id, server_id)
+        return add_to_rcv3(request_func, log, lb_id, server_id)
     else:
         raise RuntimeError("Unknown cloud load balancer type! config: {}"
                            .format(lb_config))
@@ -780,7 +780,7 @@ def remove_from_load_balancer(log, request_func, lb_config, lb_response,
     elif lb_type == "RackConnectV3":
         lb_id = lb_config["loadBalancerId"]
         node_id = next(pair["cloud_server"]["id"] for pair in lb_response)
-        return remove_from_rcv3(request_func, lb_id, node_id)
+        return remove_from_rcv3(log, request_func, lb_id, node_id)
     else:
         raise RuntimeError("Unknown cloud load balancer type! config: {}"
                            .format(lb_config))

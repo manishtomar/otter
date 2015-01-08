@@ -10,7 +10,6 @@ from zope.interface import implementer
 from otter.constants import ServiceType
 from otter.convergence.effecting import _reqs_to_effect, steps_to_effect
 from otter.convergence.steps import Request, IStep
-from otter.http import get_request_func
 from otter.util.pure_http import has_code
 
 
@@ -26,26 +25,6 @@ class _PureRequestStub(object):
     """
     A bound request stub, suitable for testing.
     """
-
-
-class PureRequestStubTests(SynchronousTestCase):
-    """
-    Tests for :class:`_PureRequestStub`, the request func test double.
-    """
-    def test_signature_and_defaults(self):
-        """
-        Compare the test double to the real thing.
-        """
-        authenticator, log, = object(), object()
-        request_func = get_request_func(authenticator, 1234, log, {}, "XYZ")
-        args, _, _, defaults = getargspec(request_func)
-        characteristic_attrs = _PureRequestStub.characteristic_attributes
-        self.assertEqual(set(a.name for a in characteristic_attrs), set(args))
-        characteristic_defaults = {a.name: a.default_value
-                                   for a in characteristic_attrs
-                                   if a.default_value is not NOTHING}
-        defaults_by_name = dict(zip(reversed(args), reversed(defaults)))
-        self.assertEqual(characteristic_defaults, defaults_by_name)
 
 
 class RequestsToEffectTests(SynchronousTestCase):
