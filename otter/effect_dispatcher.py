@@ -44,7 +44,9 @@ def get_full_dispatcher(reactor, authenticator, log, service_mapping, region):
     """
     return ComposedDispatcher([
         TypeDispatcher({
-            TenantScope: partial(perform_tenant_scope, authenticator, log,
-                                 service_mapping, region)}),
-        get_simple_dispatcher(reactor),
+            TenantScope: perform_tenant_scope,
+            ServiceRequest: partial(perform_service_request, authenticator,
+                                    log, service_mapping, region)
+        }),
+        get_simple_dispatcher(reactor)
     ])

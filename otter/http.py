@@ -160,13 +160,14 @@ def service_request(
 
 
 @attributes(["service_type", "method", "url", "headers", "data",
-             "log", "reauth_codes", "success_pred", "json_response"])
+             "log", "reauth_codes", "success_pred", "json_response",
+             Attribute("tenant_id", default='')])
 class ServiceRequest(object):
     """
     A request to a Rackspace/OpenStack service.
 
-    Note that this intent does _not_ contain a tenant ID. To specify the tenant
-    ID for any tree of effects that might contain a ServiceRequest, wrap the
+    The tenant ID is optional. To specify the tenant ID for any tree of
+    effects that might contain a ServiceRequest, wrap the
     effect in a :obj:`TenantScope`.
     """
 
@@ -188,22 +189,22 @@ class TenantScope(object):
         self.tenant_id = tenant_id
 
 
-def concretize_service_request(
+@sync_performer
+def perform_service_request(
         authenticator, log, service_mapping, region,
-        tenant_id,
-        service_request):
+        dispatcher, service_request):
     """
     Translate a high-level :obj:`ServiceRequest` into a low-level :obj:`Effect`
     of :obj:`pure_http.Request`.
 
     :param ICachingAuthenticator authenticator: the caching authenticator
-    :param tenant_id: tenant ID.
     :param BoundLog log: info about requests will be logged to this.
     :param dict service_mapping: A mapping of otter.constants.ServiceType
         constants to real service names as found in a tenant's catalog.
     :param region: The region of the Rackspace services which requests will
         be made to.
     """
+    tenant_id = service_request.tenant_id
     auth_eff = Effect(Authenticate(authenticator, tenant_id, log))
     invalidate_eff = Effect(InvalidateToken(authenticator, tenant_id))
     if service_request.log is not None:
@@ -231,29 +232,11 @@ def concretize_service_request(
             headers=service_request.headers,
             data=service_request.data,
             log=log)
-    return auth_eff.on(got_auth)
+    perform(dispatcher, auth_eff.on(got_auth))
 
 
-def perform_tenant_scope(
-        authenticator, log, service_mapping, region,
-        dispatcher, tenant_scope, box,
-        _concretize=concretize_service_request):
-    """
-    Perform a :obj:`TenantScope` by performing its :attr:`TenantScope.effect`,
-    with a dispatcher extended with a performer for :obj:`ServiceRequest`
-    intents. The performer will use the tenant provided by the
-    :obj:`TenantScope`.
-
-    The first arguments before (dispatcher, tenant_scope, box) are intended
-    to be partially applied, and the result is a performer that can be put into
-    a dispatcher.
-    """
-    @sync_performer
-    def scoped_performer(dispatcher, service_request):
-        return _concretize(
-            authenticator, log, service_mapping, region,
-            tenant_scope.tenant_id, service_request)
-    new_disp = ComposedDispatcher([
-        TypeDispatcher({ServiceRequest: scoped_performer}),
-        dispatcher])
-    perform(new_disp, tenant_scope.effect.on(box.succeed, box.fail))
+@sync_performer
+def perform_tenant_scope(dispatcher, tenant_scope):
+    if type(tenant_scope.effect.intent) is ServiceRequest:
+        tenant_scope.effect.intent.tenant_id = tenant_scope.tenant_id
+        perform(dispatcher, tenant_scope.effect)
