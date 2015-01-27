@@ -10,6 +10,7 @@ import time
 from functools import partial
 from unittest import TestCase
 
+from twisted.python.log import msg
 
 from autoscale.behaviors import AutoscaleBehaviors, rand_name
 from autoscale.client import (
@@ -132,10 +133,11 @@ class AutoscaleFixture(TestCase):
                 cls.autoscale_config.rcv3_endpoint_name,
                 cls.autoscale_config.rcv3_region_override or
                 cls.autoscale_config.region)
+
             # Instantiate an RCV3 client using the url from the catalog
             cls.rcv3_client = RackConnectV3APIClient(
                 rcv3_url, identity.token,
-                'json', 'json')
+                'json', 'json', log_function=msg)
         except Exception:
             cls.rcv3_client = None
             print("This account does not support rackconnect")
@@ -154,13 +156,13 @@ class AutoscaleFixture(TestCase):
 
         cls.autoscale_client = AutoscalingAPIClient(
             cls.url, identity.token,
-            'json', 'json')
+            'json', 'json', log_function=msg)
         cls.server_client = ServersClient(
             server_url, identity.token,
-            'json', 'json')
+            'json', 'json', log_function=msg)
         cls.lbaas_client = LbaasAPIClient(
             lbaas_url, identity.token,
-            'json', 'json')
+            'json', 'json', log_function=msg)
 
         cls.autoscale_behaviors = AutoscaleBehaviors(
             cls.autoscale_config, cls.autoscale_client,

@@ -37,7 +37,8 @@ from autoscale.models.servers import Server, Addresses
                            'accept': 'application/json'
                        },
                        instance_of=dict),
-             Attribute('logger', default_factory=getLogger)])
+             Attribute('log_function',
+                       default_value=getLogger('otter_integration').debug)])
 class BaseRestClient(object):
     """
     Base client that makes requests, logs, and serializes.
@@ -78,7 +79,7 @@ class BaseRestClient(object):
         end = time()
         response.entity = None
 
-        self.logger.debug(dedent("""
+        self.log_function(dedent("""
         ------------
         REQUEST SENT
         ------------
@@ -114,7 +115,7 @@ class BaseRestClient(object):
                 response.entity = response_entity_type._json_to_obj(
                     response.content)
         except:
-            self.logger.error(
+            self.log_function(
                 "Failed to create a {0} with the following data:\n{1}"
                 .format(response_entity_type.__name__, response.content))
 
@@ -128,8 +129,8 @@ class AutoscalingAPIClient(BaseRestClient):
     """
 
     def __init__(self, url, auth_token, serialize_format=None,
-                 deserialize_format=None):
-        super(AutoscalingAPIClient, self).__init__()
+                 deserialize_format=None, **kwargs):
+        super(AutoscalingAPIClient, self).__init__(**kwargs)
         self.url = url
         self.auth_token = auth_token
         self.default_headers['X-Auth-Token'] = auth_token
@@ -899,8 +900,8 @@ class LbaasAPIClient(BaseRestClient):
     """
 
     def __init__(self, url, auth_token, serialize_format=None,
-                 deserialize_format=None):
-        super(LbaasAPIClient, self).__init__()
+                 deserialize_format=None, **kwargs):
+        super(LbaasAPIClient, self).__init__(**kwargs)
         self.url = ''.join([url, '/loadbalancers'])
         self.auth_token = auth_token
         self.default_headers['X-Auth-Token'] = auth_token
@@ -996,9 +997,8 @@ class RackConnectV3APIClient(BaseRestClient):
     """
 
     def __init__(self, url, auth_token, serialize_format=None,
-                 deserialize_format=None):
-        super(RackConnectV3APIClient, self).__init__(serialize_format,
-                                                     deserialize_format)
+                 deserialize_format=None, **kwargs):
+        super(RackConnectV3APIClient, self).__init__(**kwargs)
         self.url = url
         self.auth_token = auth_token
         self.default_headers['X-Auth-Token'] = auth_token
@@ -1080,7 +1080,7 @@ class ServersClient(BaseRestClient):
     """
 
     def __init__(self, url, auth_token, serialize_format=None,
-                 deserialize_format=None):
+                 deserialize_format=None, **kwargs):
         """
         @param url: Base URL for the compute service
         @type url: String
@@ -1091,7 +1091,7 @@ class ServersClient(BaseRestClient):
         @param deserialize_format: Format for de-serializing responses
         @type deserialize_format: String
         """
-        super(ServersClient, self).__init__()
+        super(ServersClient, self).__init__(**kwargs)
         self.auth_token = auth_token
         self.default_headers['X-Auth-Token'] = auth_token
         self.url = url
