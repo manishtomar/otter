@@ -144,8 +144,7 @@ class AutoscaleFixture(TestCase):
 
         cls.tenant_id = cls.autoscale_config.tenant_id
 
-        env = os.environ['OSTNG_CONFIG_FILE']
-        if ('preprod' in env.lower()) or ('dev' in env.lower()):
+        if cls.autoscale_config.environment.lower() in ('dev', 'preprod'):
             cls.url = str(cls.autoscale_config.server_endpoint) + \
                 '/' + str(cls.tenant_id)
             print(" ------ Using dev or pre-prod otter --------")

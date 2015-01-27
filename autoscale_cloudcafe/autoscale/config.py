@@ -22,6 +22,7 @@ from toolz.itertoolz import concat
              'autoscale_nc_lc_aa', 'autoscale_nc_lc_ao',
              'autoscale_na_la_ano', 'autoscale_nno_lno_ao',
              'autoscale_nno_lno_aa',
+             Attribute('environment', default_value='prod'),
              Attribute('rcv3_endpoint_name', default_value=None),
              Attribute('rcv3_load_balancer_pool', default_value=None),
              Attribute('rcv3_cloud_network', default_value=None),
