@@ -2,10 +2,12 @@
 Marshalling for autoscale requests
 """
 from collections import namedtuple
+import json
+
+from characteristic import attributes, Attribute
+from toolz.dicttoolz import valfilter
 
 from autoscale.models.util import BaseModel
-from cloudcafe.compute.servers_api.models.requests import CreateServer
-import json
 
 
 _NullArg = namedtuple("JSONNull", [])
@@ -307,12 +309,13 @@ class Config_Request(BaseModel):
     def _obj_to_json(self):
         kwargs = {
             "name": self.name,
-            "imageRef": self.image_ref,
-            "flavorRef": self.flavor_ref,
+            "image_ref": self.image_ref,
+            "flavor_ref": self.flavor_ref,
             "personality": self.personality,
             "metadata": self.metadata,
-            "diskConfig": self.disk_config,
-            "networks": self.networks
+            "disk_config": self.disk_config,
+            "networks": self.networks,
+            "block_device_mapping": self.block_device_mapping
         }
         server_json = CreateServer(**kwargs)._obj_to_json()
         server_json = json.loads(server_json)
@@ -320,11 +323,6 @@ class Config_Request(BaseModel):
         for k, v in kwargs.iteritems():
             if v is null:
                 server_json['server'][k] = None
-
-        # TODO: pass this in kwargs once Cloudcafe is updated so that
-        # CreateServer takes a block_device_mapping kwarg
-        if self.block_device_mapping:
-            server_json['server']['block_device_mapping'] = self.block_device_mapping
 
         body = {'type': 'launch_server',
                 'args': server_json}
@@ -384,3 +382,42 @@ class ScalingGroup_Request(BaseModel):
         if self.sp_list:
             body['scalingPolicies'] = self.sp_list
         return json.dumps(body)
+
+
+@attributes(["name", "image_ref", "flavor_ref", "disk_config",
+             Attribute("disk_config", default_value=None),
+             Attribute("metadata", default_value=None),
+             Attribute("personality", default_value=None),
+             Attribute("block_device_mapping", default_value=None),
+             Attribute("user_data", default_value=None),
+             Attribute("accessIPv4", default_value=None),
+             Attribute("accessIPv6", default_value=None),
+             Attribute("networks", default_value=None),
+             Attribute("key_name", default_value=None),
+             Attribute("config_drive", default_value=None)])
+class CreateServer(BaseModel):
+    """
+    Simplified model from Cloudcafe required for :class:`Config_Request`.
+    """
+    def _obj_to_json(self):
+
+        if self.personality == []:
+            self.personality = None
+
+        body = {
+            'name': self.name,
+            'imageRef': self.image_ref,
+            'flavorRef': self.flavor_ref,
+            'OS-DCF:diskConfig': self.disk_config,
+            'metadata': self.metadata,
+            'accessIPv4': self.accessIPv4,
+            'accessIPv6': self.accessIPv6,
+            'personality': self.personality,
+            'block_device_mapping': self.block_device_mapping,
+            'user_data': self.user_data,
+            'networks': self.networks,
+            'key_name': self.key_name,
+            'config_drive': self.config_drive,
+        }
+
+        return json.dumps({'server': valfilter(lambda v: v is not None, body)})
