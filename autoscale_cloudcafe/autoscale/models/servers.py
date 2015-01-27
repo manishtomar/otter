@@ -2,7 +2,6 @@
 Marshalling for server objects
 """
 import json
-from cloudcafe.compute.common.equality_tools import EqualityTools
 
 from autoscale.models.util import BaseModel
 
@@ -51,26 +50,6 @@ class Metadata(BaseModel):
                     and not name.startswith('sele') and not name.startswith('seria'):
                 meta[name] = value
         return meta
-
-    def __eq__(self, other):
-        """
-        :summary: Overrides the default equals
-        :param other: Links object to compare with
-        :type other: Links
-        :return: True if Links objects are equal, False otherwise
-        :rtype: bool
-        """
-        return EqualityTools.are_objects_equal(self, other)
-
-    def __ne__(self, other):
-        """
-        :summary: Overrides the default not-equals
-        :param other: Links object to compare with
-        :type other: Links
-        :return: True if Links objects are not equal, False otherwise
-        :rtype: bool
-        """
-        return not self == other
 
 
 class Links(BaseModel):

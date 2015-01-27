@@ -143,7 +143,9 @@ class UpdateGroupConfigTest(AutoscaleFixture):
             view_scaling_group_config(group_id=self.group.id)
         self.assertEquals(get_upd_group.status_code, 200)
         get_group_config = get_upd_group.entity
-        self.assertEquals(get_group_config.metadata, upd_metadata)
+        self.assertEquals(
+            self.autoscale_behaviors.to_data(get_group_config.metadata),
+            upd_metadata)
         self.assertEquals(get_group_config.maxEntities, 10)
         self.assertEquals(get_group_config.minEntities, 2)
         self.assertEquals(get_group_config.cooldown,
