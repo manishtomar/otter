@@ -1,17 +1,15 @@
 """
-Behaviors for Autoscale
+Behaviors for Autoscale.
 """
 import inspect
 import logging
+import random
+import string
 import time
 import unittest
 
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
-
-from cafe.engine.behaviors import BaseBehavior
-
-from cloudcafe.common.tools.datagen import rand_name
 
 from autoscale.models.servers import Metadata
 
@@ -56,7 +54,7 @@ class DefaultAsserter(object):
         raise unittest.AssertionError(msg)
 
 
-class AutoscaleBehaviors(BaseBehavior):
+class AutoscaleBehaviors(object):
 
     """
     :summary: Behavior Module for the Autoscale REST API
@@ -71,7 +69,6 @@ class AutoscaleBehaviors(BaseBehavior):
         """
         Instantiate config and client
         """
-        super(AutoscaleBehaviors, self).__init__()
         self.autoscale_config = autoscale_config
         self.autoscale_client = autoscale_client
         self.rcv3_client = rcv3_client
@@ -673,3 +670,15 @@ def safe_hasattr(obj, key):
     """This function provides a safe alternative to the hasattr() function."""
     sentinel = object()
     return getattr(obj, key, sentinel) is not sentinel
+
+
+def rand_name(prefix):
+    """
+    Makes a randon name by appending 8 random characters to the prefix.
+
+    The random characters are all ASCII and digits.
+    """
+    return "{0}{1}".format(
+        prefix,
+        "".join([random.choice(string.ascii_uppercase + string.digits)
+                 for _ in range(8)]))
