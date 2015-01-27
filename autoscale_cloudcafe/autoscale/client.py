@@ -27,6 +27,8 @@ from autoscale.models.response.autoscale_response import (
 
 from autoscale.models.response.limits_response import Limits
 
+from autoscale.models.servers import Server, Addresses
+
 
 @attributes([Attribute('default_headers',
                        default_factory=lambda: {
@@ -71,9 +73,6 @@ class BaseRestClient(object):
         response = request(**request_params)
         end = time()
         response.entity = None
-        if response_entity_type:
-            response.entity = response_entity_type._json_to_obj(
-                response.content)
 
         self.logger.debug(dedent("""
         ------------
@@ -105,6 +104,16 @@ class BaseRestClient(object):
             marshaller=(response_entity_type.__name__ if response_entity_type
                         else None)
         )))
+
+        try:
+            if response_entity_type:
+                response.entity = response_entity_type._json_to_obj(
+                    response.content)
+        except:
+            self.logger.error(
+                "Failed to create a {0} with the following data:\n{1}"
+                .format(response_entity_type.__name__, response.content))
+            raise
 
         return response
 
@@ -1059,3 +1068,141 @@ class RackConnectV3APIClient(BaseRestClient):
         print("... RCV3 request ... ", url)
         return self.request('DELETE', url,
                             requestslib_kwargs=requestslib_kwargs)
+
+
+class ServersClient(BaseRestClient):
+    """
+    Simplified Nova server client copied from cloudcafe, with unnecessary
+    methods not currently used in autoscaling eliminated.
+    """
+
+    def __init__(self, url, auth_token, serialize_format=None,
+                 deserialize_format=None):
+        """
+        @param url: Base URL for the compute service
+        @type url: String
+        @param auth_token: Auth token to be used for all requests
+        @type auth_token: String
+        @param serialize_format: Format for serializing requests
+        @type serialize_format: String
+        @param deserialize_format: Format for de-serializing responses
+        @type deserialize_format: String
+        """
+        super(ServersClient, self).__init__()
+        self.auth_token = auth_token
+        self.default_headers['X-Auth-Token'] = auth_token
+        self.url = url
+
+    def list_servers(self, name=None, image=None, flavor=None,
+                     status=None, marker=None, limit=None, changes_since=None,
+                     requestslib_kwargs=None):
+        """
+        @summary: Lists all servers with minimal details. Additionally,
+         can filter results by params. Maps to /servers
+        @param image: Image id to filter by
+        @type image: String
+        @param flavor: Flavor id to filter by
+        @type flavor: String
+        @param name: Server name to filter by
+        @type name: String
+        @param status: Server status to filter by
+        @type status: String
+        @param marker: Server id to be used as a marker for the next list
+        @type marker: String
+        @param limit: The maximum number of results to return
+        @type limit: Int
+        @param changes_since: Will only return servers where the updated time
+         is later than the changes-since parameter.
+        @return: resp
+        @rtype: Requests.response
+        """
+
+        params = {'image': image, 'flavor': flavor, 'name': name,
+                  'status': status, 'marker': marker,
+                  'limit': limit, 'changes-since': changes_since}
+        url = '{base_url}/servers'.format(base_url=self.url)
+        resp = self.request('GET', url, params=params,
+                            response_entity_type=Server,
+                            requestslib_kwargs=requestslib_kwargs)
+        return resp
+
+    def list_servers_with_detail(self, image=None, flavor=None, name=None,
+                                 status=None, marker=None,
+                                 limit=None, changes_since=None,
+                                 requestslib_kwargs=None):
+        """
+        @summary: Lists all servers with full details. Additionally,
+         can filter results by params. Maps to /servers/detail
+        @param image: Image id to filter by
+        @type image: String
+        @param flavor: Flavor id to filter by
+        @type flavor: String
+        @param name: Server name to filter by
+        @type name: String
+        @param status: Server status to filter by
+        @type status: String
+        @param marker: Server id to be used as a marker for the next list
+        @type marker: String
+        @param limit: The maximum number of results to return
+        @type limit: Int
+        @param changes-since: Will only return servers where the updated time
+         is later than the changes-since parameter.
+        @return: resp
+        @rtype: Requests.response
+        """
+
+        params = {'image': image, 'flavor': flavor, 'name': name,
+                  'status': status, 'marker': marker, 'limit': limit,
+                  'changes-since': changes_since}
+        url = '{base_url}/servers/detail'.format(base_url=self.url)
+        resp = self.request('GET', url, params=params,
+                            response_entity_type=Server,
+                            requestslib_kwargs=requestslib_kwargs)
+        return resp
+
+    def get_server(self, server_id, requestslib_kwargs=None):
+        """
+        @summary: Retrieves the details of the specified server
+        @param server_id: The id of an existing server
+        @type server_id: String
+        @return: resp
+        @rtype: Requests.response
+        """
+
+        url = '{base_url}/servers/{server_id}'.format(
+            base_url=self.url, server_id=server_id)
+        resp = self.request('GET', url,
+                            response_entity_type=Server,
+                            requestslib_kwargs=requestslib_kwargs)
+        return resp
+
+    def delete_server(self, server_id, requestslib_kwargs=None):
+        """
+        @summary: Deletes the specified server
+        @param server_id: The id of a server
+        @type server_id: String
+        @return: resp
+        @rtype: Requests.response
+        """
+
+        url = '{base_url}/servers/{server_id}'.format(
+            base_url=self.url, server_id=server_id)
+        resp = self.request('DELETE', url,
+                            requestslib_kwargs=requestslib_kwargs)
+        return resp
+
+    def list_addresses(self, server_id, requestslib_kwargs=None):
+        """
+        @summary: Lists all addresses for a server.
+        @param server_id: The id of an existing server.
+        @type server_id: String
+        @return: Response code and the Addresses
+        @rtype: Requests.response
+        """
+
+        url = '{base_url}/servers/{server_id}/ips'.format(
+            base_url=self.url, server_id=server_id)
+        resp = self.request('GET', url,
+                            response_entity_type=Addresses,
+                            requestslib_kwargs=requestslib_kwargs)
+        return resp

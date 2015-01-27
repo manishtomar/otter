@@ -113,7 +113,7 @@ class LoadBalancer(BaseModel):
         """
         Marshalling from object to json
         """
-        ret = self._auto_to_dict()
+        ret = self._obj_to_dict()
         return json.dumps(ret)
 
     def _obj_to_dict(self):

@@ -3,6 +3,8 @@ Marshalling for server objects
 """
 import json
 
+from characteristic import attributes, Attribute
+
 from autoscale.models.util import BaseModel
 
 
@@ -147,3 +149,149 @@ class Personality(BaseModel):
         if hasattr(personality, 'content'):
             setattr(personality, 'content', getattr(personality, 'content'))
         return personality
+
+
+@attributes(['id', 'links', 'name',
+             Attribute('disk_config', default_value=None),
+             Attribute('power_state', default_value=None),
+             Attribute('progress', default_value=None),
+             Attribute('task_state', default_value=None),
+             Attribute('vm_state', default_value=None),
+             Attribute('name', default_value=None),
+             Attribute('tenant_id', default_value=None),
+             Attribute('status', default_value=None),
+             Attribute('updated', default_value=None),
+             Attribute('created', default_value=None),
+             Attribute('host_id', default_value=None),
+             Attribute('user_id', default_value=None),
+             Attribute('accessIPv4', default_value=None),
+             Attribute('accessIPv6', default_value=None),
+             Attribute('addresses', default_value=None),
+             Attribute('flavor', default_value=None),
+             Attribute('image', default_value=None),
+             Attribute('links', default_value=None),
+             Attribute('metadata', default_value=None),
+             Attribute('key_name', default_value=None),
+             Attribute('config_drive', default_value=None),
+             Attribute('instance_name', default_value=None)])
+class Server(BaseModel):
+    """
+    Server automarshalling model copied and simplified from cloudcafe - this
+    only provides what the autoscale integration tests need, and no more.
+    """
+
+    @classmethod
+    def _json_to_obj(cls, serialized_str):
+        """
+        Returns an instance of a :class:`Server` based on the json
+        serialized_str passed in, or a list of :class:`Server` if it's a list
+        of servers.
+        """
+        json_dict = json.loads(serialized_str)
+        if 'server' in json_dict:
+            return cls._dict_to_obj(json_dict['server'])
+        elif 'servers' in json_dict:
+            return [cls._dict_to_obj(s) for s in json_dict['servers']]
+        return None
+
+    @classmethod
+    def _dict_to_obj(cls, server_dict):
+        """Helper method to turn dictionary into Server instance."""
+
+        addresses = None
+        flavor = None
+        image = None
+        links = None
+        metadata = None
+
+        if 'links' in server_dict:
+            links = Links._dict_to_obj(server_dict['links'])
+        if 'addresses' in server_dict:
+            addresses = Addresses(**server_dict['addresses'])
+        if 'flavor' in server_dict:
+            flavor = Flavor(**server_dict['flavor'])
+        if 'image' in server_dict and server_dict.get('image'):
+            image = Image(**server_dict['image'])
+        if 'metadata' in server_dict:
+            metadata = Metadata._dict_to_obj(server_dict['metadata'])
+
+        server = Server(
+            id=server_dict.get('id') or server_dict.get('uuid'),
+            disk_config=server_dict.get('OS-DCF:diskConfig'),
+            power_state=server_dict.get('OS-EXT-STS:power_state'),
+            progress=server_dict.get('progress', 0),
+            task_state=server_dict.get('OS-EXT-STS:task_state'),
+            vm_state=server_dict.get('OS-EXT-STS:vm_state'),
+            name=server_dict.get('name'),
+            config_drive=server_dict.get('config_drive'),
+            tenant_id=server_dict.get('tenant_id'),
+            status=server_dict.get('status'),
+            updated=server_dict.get('updated'),
+            created=server_dict.get('created'),
+            host_id=server_dict.get('hostId'),
+            user_id=server_dict.get('user_id'),
+            accessIPv4=server_dict.get('accessIPv4'),
+            accessIPv6=server_dict.get('accessIPv6'), addresses=addresses,
+            flavor=flavor, image=image, links=links, metadata=metadata,
+            key_name=server_dict.get('key_name'))
+
+        return server
+
+
+@attributes(["id"])
+class Image(object):
+    """
+    Simplified image automarshalling model needed by :class:`Server` model.
+    """
+    def __init__(self, **kwargs):
+        """
+        Ignore any other params passed to the original init.
+        """
+
+
+@attributes(["id"])
+class Flavor(object):
+    """
+    Simplified flavor automarshalling model needed by :class:`Server` model.
+    """
+    def __init__(self, **kwargs):
+        """
+        Ignore any other params passed to the original init.
+        """
+
+
+@attributes(["version", "addr"])
+class _AddrObj(BaseModel):
+    """
+    Simplified network address object needed by :class:`Addresses` model
+    """
+
+
+@attributes(["addresses"])
+class _NetworkAddressesList(BaseModel):
+    """
+    Simplified network address list object needed by :class:`Addresses` model
+    """
+
+
+class Addresses(object):
+    def __init__(self, **addresses):
+        """
+        Apparently all the attributes on this object are network names.
+        """
+        # Preset properties that should be expected, if not always populated
+        self.public = None
+        self.private = None
+
+        for addr_name, addr_list in addresses.iteritems():
+            # >:(  why the objects in objects in objects I don't know
+            addresses = [_AddrObj(**addr_dict) for addr_dict in addr_list]
+            setattr(self, addr_name,
+                    _NetworkAddressesList(addresses=addresses))
+
+    @classmethod
+    def _json_to_obj(cls, serialized_str):
+        json_dict = json.loads(serialized_str)
+        if 'addresses' in json_dict:
+            return Addresses(**json_dict['addresses'])
+        return Addresses(**json_dict)

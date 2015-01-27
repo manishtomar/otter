@@ -16,11 +16,11 @@ from cloudcafe.auth.provider import AuthProvider
 
 from cloudcafe.common.resources import ResourcePool
 from cloudcafe.common.tools.datagen import rand_name
-from cloudcafe.compute.servers_api.client import ServersClient
 
 from autoscale.behaviors import AutoscaleBehaviors
 from autoscale.client import (
-    AutoscalingAPIClient, LbaasAPIClient, RackConnectV3APIClient
+    AutoscalingAPIClient, LbaasAPIClient, RackConnectV3APIClient,
+    ServersClient
 )
 from autoscale.config import AutoscaleConfig
 from autoscale.otter_constants import OtterConstants
