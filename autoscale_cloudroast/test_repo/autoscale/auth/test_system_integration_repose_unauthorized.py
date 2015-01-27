@@ -2,11 +2,8 @@
 System Integration tests autoscaling with repose
 """
 from test_repo.autoscale.fixtures import AutoscaleFixture
-from cloudcafe.identity.v2_0.tokens_api.behaviors import \
-    TokenAPI_Behaviors as OSTokenAPI_Behaviors
-from cloudcafe.identity.v2_0.tokens_api.client import \
-    TokenAPI_Client as OSTokenAPI_Client
-from autoscale.client import AutoscalingAPIClient
+from autoscale.client import AutoscalingAPIClient, IdentityClient
+from autoscale.config import AuthConfig
 from cafe.drivers.unittest.decorators import tags
 
 
@@ -24,15 +21,14 @@ class AutoscaleReposeUnauthTests(AutoscaleFixture):
         """
         super(AutoscaleReposeUnauthTests, cls).setUpClass()
         cls.url = cls.url.replace(cls.tenant_id, cls.non_autoscale_tenant)
-        endpoint = cls.endpoint_config.auth_endpoint
-        token_client = OSTokenAPI_Client(
-            endpoint, 'json', 'json')
-        token_behaviors = OSTokenAPI_Behaviors(token_client)
-        access_data = token_behaviors.get_access_data(cls.non_autoscale_username,
-                                                      cls.non_autoscale_password,
-                                                      cls.non_autoscale_tenant)
+
+        new_config = AuthConfig(username=cls.non_autoscale_username,
+                                endpoint=cls.auth_config.auth_endpoint,
+                                password=cls.non_autoscale_password,
+                                tenant_name=cls.non_autoscale_tenant)
+        identity = IdentityClient.authenticate(new_config)
         cls.autoscale_temp_client = AutoscalingAPIClient(
-            url=cls.url, auth_token=access_data.token.id_, serialize_format='json',
+            url=cls.url, auth_token=identity.token, serialize_format='json',
             deserialize_format='json')
 
     @tags(type='repose')

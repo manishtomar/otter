@@ -3,26 +3,20 @@ System Integration tests for otter's rbac roles
 """
 from test_repo.autoscale.fixtures import AutoscaleFixture
 from cafe.drivers.unittest.decorators import tags
-from cloudcafe.identity.v2_0.tokens_api.behaviors import \
-    TokenAPI_Behaviors as OSTokenAPI_Behaviors
-from cloudcafe.identity.v2_0.tokens_api.client import \
-    TokenAPI_Client as OSTokenAPI_Client
-from cloudcafe.auth.config import UserConfig
-from autoscale.client import AutoscalingAPIClient
+from autoscale.client import AutoscalingAPIClient, IdentityClient
+from autoscale.config import AuthConfig
 
 
 class OtterRbacTests(AutoscaleFixture):
     """
     System tests to verify the rbac roles for otter.
     """
-    user_config = UserConfig()
-    password = user_config.password
-
     def setUp(self):
         """
         Create a group with a policy and a webhook
         """
         super(OtterRbacTests, self).setUp()
+        self.password = self.auth_config.password
         create_group = self.autoscale_behaviors.create_scaling_group_given(
             gc_min_entities=0)
         self.group = create_group.entity
@@ -147,14 +141,13 @@ class OtterRbacTests(AutoscaleFixture):
         """
         Create a client for the given test account
         """
-        endpoint = self.endpoint_config.auth_endpoint
-        token_client = OSTokenAPI_Client(endpoint, 'json', 'json')
-        token_behaviors = OSTokenAPI_Behaviors(token_client)
-        access_data = token_behaviors.get_access_data(username,
-                                                      password,
-                                                      self.tenant_id)
+        new_config = AuthConfig(username=username,
+                                endpoint=self.auth_config.auth_endpoint,
+                                password=password,
+                                tenant_name=self.tenant_id)
+        identity = IdentityClient.authenticate(new_config)
         autoscale_temp_client = AutoscalingAPIClient(url=self.url,
-                                                     auth_token=access_data.token.id_,
+                                                     auth_token=identity.token,
                                                      serialize_format='json',
                                                      deserialize_format='json')
         return autoscale_temp_client

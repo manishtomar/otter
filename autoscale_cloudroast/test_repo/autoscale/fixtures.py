@@ -11,18 +11,15 @@ from functools import partial
 
 from cafe.drivers.unittest.fixtures import BaseTestFixture
 
-from cloudcafe.auth.config import UserAuthConfig, UserConfig
-from cloudcafe.auth.provider import AuthProvider
-
 from cloudcafe.common.resources import ResourcePool
 from cloudcafe.common.tools.datagen import rand_name
 
 from autoscale.behaviors import AutoscaleBehaviors
 from autoscale.client import (
-    AutoscalingAPIClient, LbaasAPIClient, RackConnectV3APIClient,
-    ServersClient
+    AutoscalingAPIClient, IdentityClient, LbaasAPIClient,
+    RackConnectV3APIClient, ServersClient
 )
-from autoscale.config import AutoscaleConfig
+from autoscale.config import from_file
 from autoscale.otter_constants import OtterConstants
 
 
@@ -38,33 +35,29 @@ class AutoscaleFixture(BaseTestFixture):
         """
         super(AutoscaleFixture, cls).setUpClass()
         cls.resources = ResourcePool()
-        cls.autoscale_config = AutoscaleConfig.from_file(
+        cls.auth_config, cls.autoscale_config = from_file(
             os.getenv('CLOUDCAFE_CONFIG'))
-        cls.endpoint_config = UserAuthConfig()
-        user_config = UserConfig()
-        access_data = AuthProvider.get_access_data(cls.endpoint_config,
-                                                   user_config)
-        server_service = access_data.get_service(
-            cls.autoscale_config.server_endpoint_name)
-        load_balancer_service = access_data.get_service(
-            cls.autoscale_config.load_balancer_endpoint_name)
-        server_url = server_service.get_endpoint(
+
+        identity = IdentityClient.authenticate(cls.auth_config)
+
+        server_url = identity.get_endpoint(
+            cls.autoscale_config.server_endpoint_name,
             cls.autoscale_config.server_region_override or
-            cls.autoscale_config.region).public_url
-        lbaas_url = load_balancer_service.get_endpoint(
+            cls.autoscale_config.region)
+
+        lbaas_url = identity.get_endpoint(
+            cls.autoscale_config.load_balancer_endpoint_name,
             cls.autoscale_config.lbaas_region_override or
-            cls.autoscale_config.region).public_url
-        # Get the name of the RCV3 service catalog entry from the config file
-        rcv3_service = access_data.get_service(
-            cls.autoscale_config.rcv3_endpoint_name)
-        # Use the region of the config to get the url
+            cls.autoscale_config.region)
+
         try:
-            rcv3_url = rcv3_service.get_endpoint(
+            rcv3_url = identity.get_endpoint(
+                cls.autoscale_config.rcv3_endpoint_name,
                 cls.autoscale_config.rcv3_region_override or
-                cls.autoscale_config.region).public_url
+                cls.autoscale_config.region)
             # Instantiate an RCV3 client using the url from the catalog
             cls.rcv3_client = RackConnectV3APIClient(
-                rcv3_url, access_data.token.id_,
+                rcv3_url, identity.token,
                 'json', 'json')
         except Exception:
             cls.rcv3_client = None
@@ -79,19 +72,18 @@ class AutoscaleFixture(BaseTestFixture):
                 '/' + str(cls.tenant_id)
             print(" ------ Using dev or pre-prod otter --------")
         else:
-            autoscale_service = access_data.get_service(
-                cls.autoscale_config.autoscale_endpoint_name)
-            cls.url = autoscale_service.get_endpoint(
-                cls.autoscale_config.region).public_url
+            cls.url = identity.get_endpoint(
+                cls.autoscale_config.autoscale_endpoint_name,
+                cls.autoscale_config.region)
 
         cls.autoscale_client = AutoscalingAPIClient(
-            cls.url, access_data.token.id_,
+            cls.url, identity.token,
             'json', 'json')
         cls.server_client = ServersClient(
-            server_url, access_data.token.id_,
+            server_url, identity.token,
             'json', 'json')
         cls.lbaas_client = LbaasAPIClient(
-            lbaas_url, access_data.token.id_,
+            lbaas_url, identity.token,
             'json', 'json')
 
         cls.autoscale_behaviors = AutoscaleBehaviors(

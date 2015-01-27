@@ -122,22 +122,81 @@ class AutoscaleConfig(object):
     Attribute('target_alias', default_value=None)
     Attribute('alarm_criteria', default_value=None)
     """
-    @classmethod
-    def from_file(cls, filename):
+    def __init__(self, **kwargs):
         """
-        Read a cloudcafe config file and make a config object.
-
-        Attribute('filename', default_value=None)
-        :return: :class:`AutoscaleConfig` populated with the contents of
-            the config file.
+        Ignore extra parameters.
         """
-        config = SafeConfigParser()
-        config.read(filename)
-        valids = [a.name for a in AutoscaleConfig.characteristic_attributes]
 
-        # ignore the sections
-        sections = config.sections()
-        options = concat((config.items(section) for section in sections))
-        options = [item for item in options if item[0] in valids]
 
-        return AutoscaleConfig(**dict(options))
+@attributes(["username",
+             Attribute("auth_endpoint", init_aliaser=lambda _: "endpoint"),
+             Attribute("tenant_name", default_value=None),
+             Attribute("api_key", default_value=None),
+             Attribute("password", default_value=None),
+             Attribute("strategy", default_value="keystone")])
+class AuthConfig(object):
+    """
+    Config values for how to auth - combination of UserAuthConfig and
+    UserConfig from Cloudcafe.
+
+    :param str username: The name of the user.
+    :param str tenant_name: The user's tenant_id
+    :param str api_key: The user's api key, optional.
+    :param str password: The user's password, optional.
+    :param str endpoint: The authentication endpoint to use for the
+        credentials in the [user] config section.  This value is used by the
+        auth provider.
+    :param str strategy: The type of authentication exposed by the
+        endpoint. Currently, supported values are 'keystone', 'rax_auth'.
+        """
+    def __init__(self, **kwargs):
+        """
+        Ignore extra parameters.
+        """
+
+    def authentication_json(self):
+        """
+        Return the JSON necessary to authenticate this user.
+        """
+        if self.strategy == 'rax_auth':
+            blob = {
+                "auth": {
+                    "RAX-KSKEY:apiKeyCredentials": {
+                        "username": self.username,
+                        "apiKey": self.api_key
+                    }
+                }
+            }
+        else:
+            blob = {
+                "auth": {
+                    "passwordCredentials": {
+                        "username": self.username,
+                        "password": self.password
+                    }
+                }
+            }
+
+        if self.tenant_name:
+            blob['auth']['tenantName'] = self.tenant_name
+
+        return blob
+
+
+def from_file(filename):
+    """
+    Read a cloudcafe config file and makes three config objects.
+
+    :param str filename: The config file to read
+    :return: `tuple` of (:class:`AuthConfig`, :class:`AutoscaleConfig`) all
+        populated with the contents of the config file.
+    """
+    config = SafeConfigParser()
+    config.read(filename)
+
+    data = ((AuthConfig, concat([config.items('user'),
+                                 config.items('user_auth_config')])),
+            (AutoscaleConfig, config.items('autoscale')))
+
+    return tuple([cls(**{i[0]: i[1] for i in items})
+                  for cls, items in data])

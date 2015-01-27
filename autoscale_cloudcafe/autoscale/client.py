@@ -1209,3 +1209,45 @@ class ServersClient(BaseRestClient):
                             response_entity_type=Addresses,
                             requestslib_kwargs=requestslib_kwargs)
         return resp
+
+
+@attributes(["token", "service_catalog"])
+class IdentityClient(object):
+    """
+    Object that authenticates a user, and provides methods to obtain
+    endpoints based on the service name.  Both a client and model in the
+    cloudcafe sense.
+    """
+    @classmethod
+    def authenticate(cls, auth_config):
+        """
+        Authenticates user and creates an :class:`IdentityClient`
+        """
+        response = BaseRestClient().request(
+            'POST', auth_config.auth_endpoint + "/v2.0/tokens",
+            request_entity=auth_config.authentication_json())
+
+        if response.status_code != 200:
+            raise Exception(
+                "Authing resulted in a {0} response.".format(response))
+
+        blob = response.json()
+        return cls(token=blob['access']['token']['id'],
+                   service_catalog=blob['access']['serviceCatalog'])
+
+    def get_endpoint(self, service, region):
+        """
+        Gets a particular endpoint for a given service for a given region.
+        """
+        entry = [s for s in self.service_catalog if s['name'] == service]
+        if not entry:
+            raise Exception("User doesn't have access to {0}".format(service))
+
+        endpoint = [e for e in entry[0]['endpoints']
+                    if e['region'].lower() == region.lower()]
+
+        if not endpoint:
+            raise Exception("User doesn't have access to {0} in {1}"
+                            .format(service, region))
+
+        return endpoint[0]['publicURL']
