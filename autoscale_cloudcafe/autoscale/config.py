@@ -1,400 +1,141 @@
 """
-Define autoscale config values
+Define autoscale config values.
 """
-from cloudcafe.common.models.configuration import ConfigSectionInterface
+from ConfigParser import SafeConfigParser
+from characteristic import attributes, Attribute
+from toolz.itertoolz import concat
 
 
-class AutoscaleConfig(ConfigSectionInterface):
+@attributes(['tenant_id', 'region', 'gc_name', 'gc_cooldown',
+             'gc_min_entities', 'gc_max_entities', 'gc_min_entities_alt',
+             'lc_name', 'lc_flavor_ref', 'lc_image_ref', 'lc_image_ref_alt',
+             'sp_name', 'sp_cooldown', 'sp_change', 'sp_policy_type',
+             'upd_sp_change', 'sp_change_percent', 'sp_desired_capacity',
+             'lc_load_balancers',
+             'sp_list', 'wb_name', 'interval_time', 'timeout',
+             'autoscale_endpoint_name', 'server_endpoint_name',
+             'server_endpoint', 'load_balancer_endpoint_name',
+             'non_autoscale_username', 'non_autoscale_password',
+             'non_autoscale_tenant', 'autoscale_na_la_aa',
+             'autoscale_na_lo_aa', 'autoscale_no_lo_aa',
+             'autoscale_no_lo_ao', 'autoscale_na_la_ao',
+             'autoscale_nc_lc_aa', 'autoscale_nc_lc_ao',
+             'autoscale_na_la_ano', 'autoscale_nno_lno_ao',
+             'autoscale_nno_lno_aa', 'rcv3_endpoint_name',
+             'rcv3_load_balancer_pool', 'rcv3_cloud_network',
+             Attribute('lbaas_region_override', default_value=None),
+             Attribute('server_region_override', default_value=None),
+             Attribute('rcv3_region_override', default_value=None),
+
+             # maas stuff
+             Attribute('check_type', default_value=None),
+             Attribute('check_url', default_value=None),
+             Attribute('check_method', default_value=None),
+             Attribute('monitoring_zones', default_value=None),
+             Attribute('check_timeout', default_value=None),
+             Attribute('check_period', default_value=None),
+             Attribute('target_alias', default_value=None),
+             Attribute('alarm_criteria', default_value=None)])
+class AutoscaleConfig(object):
     """
-    Defines the config values for autoscale
+    Defines the config values for autoscale.
+
+    Attribute('tenant_id', default_value=None)
+    Attribute('region', default_value=None)
+    Attribute('gc_name', default_value=None)
+    Attribute('gc_cooldown', default_value=None)
+    Attribute('gc_min_entities', default_value=None)
+    Attribute('gc_max_entities', default_value=None)
+    Attribute('gc_min_entities_alt', default_value=None)
+        entities
+    Attribute('lc_name', default_value=None)
+    Attribute('lc_flavor_ref', default_value=None)
+    Attribute('lc_image_ref', default_value=None)
+    Attribute('lc_image_ref_alt', default_value=None)
+    Attribute('sp_name', default_value=None)
+    Attribute('sp_cooldown', default_value=None)
+    Attribute('sp_change', default_value=None)
+    Attribute('sp_policy_type', default_value=None)
+    Attribute('upd_sp_change', default_value=None)
+    Attribute('sp_change_percent', default_value=None)
+    Attribute('sp_desired_capacity', default_value=None)
+        steady state
+    Attribute('lc_load_balancers', default_value=None)
+    Attribute('sp_list', default_value=None)
+    Attribute('wb_name', default_value=None)
+    Attribute('interval_time', default_value=None)
+        active servers
+    Attribute('timeout', default_value=None)
+        to be active
+    Attribute('autoscale_endpoint_name', default_value=None)
+        catalog
+    Attribute('server_endpoint_name', default_value=None)
+        catalog
+    Attribute('server_endpoint', default_value=None)
+        application
+    Attribute('load_balancer_endpoint_name', default_value=None)
+        service catalog
+    Attribute('lbaas_region_override', default_value=None)
+        catalog
+    Attribute('server_region_override', default_value=None)
+    Attribute('non_autoscale_username', default_value=None)
+        in its service catalog
+    Attribute('non_autoscale_password', default_value=None)
+        in its service catalog
+    Attribute('non_autoscale_tenant', default_value=None)
+        its service catalog
+    Attribute('autoscale_na_la_aa', default_value=None)
+        gen, load balancers and autoscale
+    Attribute('autoscale_na_lo_aa', default_value=None)
+        and autoscale & observer role for load balancer.
+    Attribute('autoscale_no_lo_aa', default_value=None)
+        gen, and load balancer & admin role for autoscale.
+    Attribute('autoscale_no_lo_ao', default_value=None)
+        gen, load balancer & autoscale.
+    Attribute('autoscale_na_la_ao', default_value=None)
+        gen, load balancer & observer role for autoscale.
+    Attribute('autoscale_nc_lc_aa', default_value=None)
+        gen, load balancer & admin role for autoscale.
+    Attribute('autoscale_nc_lc_ao', default_value=None)
+        gen, load balancer & observer role for autoscale.
+    Attribute('autoscale_na_la_ano', default_value=None)
+        gen, load balancer & no access for autoscale.
+    Attribute('autoscale_nno_lno_ao', default_value=None)
+        gen, load balancer & no access for autoscale.
+    Attribute('autoscale_nno_lno_aa', default_value=None)
+        gen, load balancer & no access for autoscale.
+    Attribute('rcv3_endpoint_name', default_value=None)
+    Attribute('rcv3_load_balancer_pool', default_value=None)
+    Attribute('rcv3_region_override', default_value=None)
+        config file
+    Attribute('rcv3_cloud_network', default_value=None)
+        RackConnect
+
+    Attribute('check_type', default_value=None)
+    Attribute('check_url', default_value=None)
+    Attribute('check_method', default_value=None)
+    Attribute('monitoring_zones', default_value=None)
+    Attribute('check_timeout', default_value=None)
+    Attribute('check_period', default_value=None)
+    Attribute('target_alias', default_value=None)
+    Attribute('alarm_criteria', default_value=None)
     """
-    SECTION_NAME = 'autoscale'
+    @classmethod
+    def from_file(cls, filename):
+        """
+        Read a cloudcafe config file and make a config object.
 
-    @property
-    def tenant_id(self):
+        Attribute('filename', default_value=None)
+        :return: :class:`AutoscaleConfig` populated with the contents of
+            the config file.
         """
-        Tenant ID of the account
-        """
-        return self.get('tenant_id')
+        config = SafeConfigParser()
+        config.read(filename)
+        valids = [a.name for a in AutoscaleConfig.characteristic_attributes]
 
-    @property
-    def region(self):
-        """
-        Region to autoscale
-        """
-        return self.get('region')
+        # ignore the sections
+        sections = config.sections()
+        options = concat((config.items(section) for section in sections))
+        options = [item for item in options if item[0] in valids]
 
-    @property
-    def gc_name(self):
-        """
-        group configuration name
-        """
-        return self.get('gc_name')
-
-    @property
-    def gc_cooldown(self):
-        """
-        group configuration cooldown time
-        """
-        return self.get('gc_cooldown')
-
-    @property
-    def gc_min_entities(self):
-        """
-        group configuration minimum entities
-        """
-        return self.get('gc_min_entities')
-
-    @property
-    def gc_max_entities(self):
-        """
-        group configuration maximum entities
-        """
-        return self.get('gc_max_entities')
-
-    @property
-    def gc_min_entities_alt(self):
-        """
-        group configuration alternate minimum entities
-        """
-        return self.get('gc_min_entities_alt')
-
-    @property
-    def lc_name(self):
-        """
-        launch configuration server name
-        """
-        return self.get('lc_name')
-
-    @property
-    def lc_flavor_ref(self):
-        """
-        launch configuration server flavor
-        """
-        return self.get('lc_flavor_ref')
-
-    @property
-    def lc_image_ref(self):
-        """
-        launch configuration server image id
-        """
-        return self.get('lc_image_ref')
-
-    @property
-    def lc_image_ref_alt(self):
-        """
-        Alternate launch configuration server image id
-        """
-        return self.get('lc_image_ref_alt')
-
-    @property
-    def sp_name(self):
-        """
-        scaling policy name
-        """
-        return self.get('sp_name')
-
-    @property
-    def sp_cooldown(self):
-        """
-        scaling policy cooldown time
-        """
-        return self.get('sp_cooldown')
-
-    @property
-    def sp_change(self):
-        """
-        scaling policy change in servers
-        """
-        return self.get('sp_change')
-
-    @property
-    def sp_policy_type(self):
-        """
-        scaling policy type
-        """
-        return self.get('sp_policy_type')
-
-    @property
-    def upd_sp_change(self):
-        """
-        scaling policy's update to change in servers
-        """
-        return self.get('upd_sp_change')
-
-    @property
-    def sp_change_percent(self):
-        """
-        scaling policy percent change in servers
-        """
-        return self.get('sp_change_percent')
-
-    @property
-    def sp_desired_capacity(self):
-        """
-        scaling policy's servers required to be in steady state
-        """
-        return self.get('sp_desired_capacity')
-
-    @property
-    def check_type(self):
-        """
-        maas scaling policy's check type
-        """
-        return self.get('check_type')
-
-    @property
-    def check_url(self):
-        """
-        maas scaling policy's check url
-        """
-        return self.get('check_url')
-
-    @property
-    def check_method(self):
-        """
-        maas scaling policy's check method
-        """
-        return self.get('check_method')
-
-    @property
-    def monitoring_zones(self):
-        """
-        maas scaling policy's monitoring zones
-        """
-        return self.get('monitoring_zones')
-
-    @property
-    def check_timeout(self):
-        """
-        maas scaling policy's check timeout
-        """
-        return self.get('check_timeout')
-
-    @property
-    def check_period(self):
-        """
-        maas scaling policy's check period
-        """
-        return self.get('check_period')
-
-    @property
-    def target_alias(self):
-        """
-        maas scaling policy's target alias
-        """
-        return self.get('target_alias')
-
-    @property
-    def alarm_criteria(self):
-        """
-        maas scaling policy's alarm criteria
-        """
-        return self.get('alarm_criteria')
-
-    @property
-    def lc_load_balancers(self):
-        """
-        launch configuration for load balancers
-        """
-        return self.get('lc_load_balancers')
-
-    @property
-    def sp_list(self):
-        """
-        list of scaling policies
-        """
-        return self.get('sp_list')
-
-    @property
-    def wb_name(self):
-        """
-        Webhook name
-        """
-        return self.get('wb_name')
-
-    @property
-    def interval_time(self):
-        """
-        Interval time for polling group state table for active servers
-        """
-        return self.get('interval_time')
-
-    @property
-    def timeout(self):
-        """
-        Timeout is the wait time for all servers on that group to be active
-        """
-        return self.get('timeout')
-
-    @property
-    def autoscale_endpoint_name(self):
-        """
-        Autoscale endpoint name in the service catalog
-        """
-        return self.get('autoscale_endpoint_name')
-
-    @property
-    def server_endpoint_name(self):
-        """
-        server endpoint name in the service catalog
-        """
-        return self.get('server_endpoint_name')
-
-    @property
-    def server_endpoint(self):
-        """
-        server endpoint is the url to the otter application
-        """
-        return self.get('server_endpoint')
-
-    @property
-    def load_balancer_endpoint_name(self):
-        """
-        load balancer endpoint name in the service catalog
-        """
-        return self.get('load_balancer_endpoint_name')
-
-    @property
-    def lbaas_region_override(self):
-        """
-        load balancer region in the service catalog
-        """
-        return self.get('lbaas_region_override', None)
-
-    @property
-    def server_region_override(self):
-        """
-        server region in the service catalog
-        """
-        return self.get('server_region_override', None)
-
-    @property
-    def non_autoscale_username(self):
-        """
-        Test username without autoscale endpoint in its service catalog
-        """
-        return self.get('non_autoscale_username')
-
-    @property
-    def non_autoscale_password(self):
-        """
-        Test password without autoscale endpoint in its service catalog
-        """
-        return self.get('non_autoscale_password')
-
-    @property
-    def non_autoscale_tenant(self):
-        """
-        Test tenant without autoscale endpoint in its service catalog
-        """
-        return self.get('non_autoscale_tenant')
-
-    @property
-    def autoscale_na_la_aa(self):
-        """
-        Test username with admin access for next gen, load balancers and
-        autoscale
-        """
-        return self.get('autoscale_na_la_aa')
-
-    @property
-    def autoscale_na_lo_aa(self):
-        """
-        Test username with admin access for next gen and autoscale &
-        observer role for load balancer.
-        """
-        return self.get('autoscale_na_lo_aa')
-
-    @property
-    def autoscale_no_lo_aa(self):
-        """
-        Test username with observer access for next gen and load balancer &
-        admin role for autoscale.
-        """
-        return self.get('autoscale_no_lo_aa')
-
-    @property
-    def autoscale_no_lo_ao(self):
-        """
-        Test username with observer access for next gen, load balancer &
-        autoscale.
-        """
-        return self.get('autoscale_no_lo_ao')
-
-    @property
-    def autoscale_na_la_ao(self):
-        """
-        Test username with admin access for next gen, load balancer &
-        observer role for autoscale.
-        """
-        return self.get('autoscale_na_la_ao')
-
-    @property
-    def autoscale_nc_lc_aa(self):
-        """
-        Test username with creator access for next gen, load balancer &
-        admin role for autoscale.
-        """
-        return self.get('autoscale_nc_lc_aa')
-
-    @property
-    def autoscale_nc_lc_ao(self):
-        """
-        Test username with creator access for next gen, load balancer &
-        observer role for autoscale.
-        """
-        return self.get('autoscale_nc_lc_ao')
-
-    @property
-    def autoscale_na_la_ano(self):
-        """
-        Test username with admin access for next gen, load balancer &
-        no access for autoscale.
-        """
-        return self.get('autoscale_na_la_ano')
-
-    @property
-    def autoscale_nno_lno_ao(self):
-        """
-        Test username with admin access for next gen, load balancer &
-        no access for autoscale.
-        """
-        return self.get('autoscale_nno_lno_ao')
-
-    @property
-    def autoscale_nno_lno_aa(self):
-        """
-        Test username with admin access for next gen, load balancer &
-        no access for autoscale.
-        """
-        return self.get('autoscale_nno_lno_aa')
-
-    @property
-    def rcv3_endpoint_name(self):
-        """
-        Get the catalog name of the RCV3 endpoint
-        """
-        return self.get('rcv3_endpoint_name')
-
-    @property
-    def rcv3_load_balancer_pool(self):
-        """
-        Name and id of the shared RCV3 LB
-        """
-        temp = self.get('rcv3_load_balancer_pool')
-        return temp
-
-    @property
-    def rcv3_region_override(self):
-        """
-        Allow override of the rcv3 region from the config file
-        """
-        return self.get('rcv3_region_override')
-
-    @property
-    def rcv3_cloud_network(self):
-        """
-        Specify the cloud network to use with RackConnect
-        """
-        return self.get('rcv3_cloud_network')
+        return AutoscaleConfig(**dict(options))

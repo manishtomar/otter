@@ -38,7 +38,8 @@ class AutoscaleFixture(BaseTestFixture):
         """
         super(AutoscaleFixture, cls).setUpClass()
         cls.resources = ResourcePool()
-        cls.autoscale_config = AutoscaleConfig()
+        cls.autoscale_config = AutoscaleConfig.from_file(
+            os.getenv('CLOUDCAFE_CONFIG'))
         cls.endpoint_config = UserAuthConfig()
         user_config = UserConfig()
         access_data = AuthProvider.get_access_data(cls.endpoint_config,
