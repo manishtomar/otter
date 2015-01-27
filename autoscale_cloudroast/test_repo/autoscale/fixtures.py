@@ -81,7 +81,6 @@ def setUpClassSupportingHook(namespace):
                     getattr(self._tests[-1], '_originalTest', None),
                     "tearDownClass", noop)
 
-            print(setUpClass, tearDownClass)
             try:
                 setUpClass()
                 return super(ClassSetUpSuite, self).run(result)
