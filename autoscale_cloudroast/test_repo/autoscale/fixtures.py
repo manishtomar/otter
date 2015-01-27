@@ -47,6 +47,52 @@ class Resources(object):
                 pass
 
 
+def setUpClassSupportingHook(namespace):
+    """
+    Call this at the module level in your test modules that have test cases
+    which need setUpClass, like so::
+
+        setUpClassSupportingHook(globals())
+    """
+    from types import ModuleType
+    from twisted.trial.unittest import TestSuite
+    from twisted.trial.runner import TestLoader
+
+    def noop():
+        "do nothing"
+
+    class ClassSetUpSuite(TestSuite):
+        """
+        ClassSetUpSuite.
+        """
+
+        def run(self):
+            """
+            No support for Deferreds yet.
+            """
+            if not self._tests:
+                return
+            setUpClass = getattr(self._test[0], "setUpClass", noop)
+            tearDownClass = getattr(self._test[-1], "tearDownClass", noop)
+            try:
+                setUpClass()
+                return super(ClassSetUpSuite, self).run()
+            finally:
+                tearDownClass()
+
+    def test_suite_hook():
+        tl = TestLoader()
+        tl.suiteFactory = ClassSetUpSuite
+        module = ModuleType(namespace['__name__'])
+        module.__dict__.update(namespace)
+        # avoid an infinite loop
+        module.__dict__.pop("testSuite", None)
+        module.__dict__.pop("test_suite", None)
+        return tl.loadModule()
+
+    namespace['test_suite'] = test_suite_hook
+
+
 class AutoscaleFixture(BaseTestFixture):
     """
     :summary: Fixture for an Autoscale test.
