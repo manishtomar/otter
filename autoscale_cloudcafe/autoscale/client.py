@@ -3,6 +3,7 @@ Client objects for all the autoscale api calls
 """
 from __future__ import print_function
 
+import json
 from logging import getLogger
 from textwrap import dedent
 from time import time
@@ -50,7 +51,8 @@ class BaseRestClient(object):
         :param str url: URL to make request to
         :param dict params: Parameters in the URL to pass
         :param request_entity: The cloudcafe request object to deserialize into
-            json and place in the request body
+            json and place in the request body.  If instead a dict is passed,
+            the dict will be used instead.
         :param response_entity_type: The cloudcafe response object to serialize
             a json response back into
         """
@@ -63,7 +65,9 @@ class BaseRestClient(object):
         if params is not None:
             request_params['params'] = params
 
-        if request_entity is not None:
+        if isinstance(request_entity, dict):
+            request_params['data'] = json.dumps(request_entity)
+        elif request_entity is not None:
             request_params['data'] = request_entity._obj_to_json()
 
         if requestslib_kwargs:
@@ -113,7 +117,6 @@ class BaseRestClient(object):
             self.logger.error(
                 "Failed to create a {0} with the following data:\n{1}"
                 .format(response_entity_type.__name__, response.content))
-            raise
 
         return response
 
