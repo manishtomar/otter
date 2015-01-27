@@ -8,8 +8,8 @@ import json
 import os
 import time
 from functools import partial
+from unittest import TestCase
 
-from cafe.drivers.unittest.fixtures import BaseTestFixture
 
 from autoscale.behaviors import AutoscaleBehaviors, rand_name
 from autoscale.client import (
@@ -66,17 +66,25 @@ def setUpClassSupportingHook(namespace):
         ClassSetUpSuite.
         """
 
-        def run(self):
+        def run(self, result):
             """
             No support for Deferreds yet.
             """
             if not self._tests:
-                return
-            setUpClass = getattr(self._test[0], "setUpClass", noop)
-            tearDownClass = getattr(self._test[-1], "tearDownClass", noop)
+                setUpClass = noop
+                tearDownClass = noop
+            else:
+                setUpClass = getattr(
+                    getattr(self._tests[0], '_originalTest', None),
+                    "setUpClass", noop)
+                tearDownClass = getattr(
+                    getattr(self._tests[-1], '_originalTest', None),
+                    "tearDownClass", noop)
+
+            print(setUpClass, tearDownClass)
             try:
                 setUpClass()
-                return super(ClassSetUpSuite, self).run()
+                return super(ClassSetUpSuite, self).run(result)
             finally:
                 tearDownClass()
 
@@ -88,12 +96,12 @@ def setUpClassSupportingHook(namespace):
         # avoid an infinite loop
         module.__dict__.pop("testSuite", None)
         module.__dict__.pop("test_suite", None)
-        return tl.loadModule()
+        return tl.loadModule(module)
 
     namespace['test_suite'] = test_suite_hook
 
 
-class AutoscaleFixture(BaseTestFixture):
+class AutoscaleFixture(TestCase):
     """
     :summary: Fixture for an Autoscale test.
     """
