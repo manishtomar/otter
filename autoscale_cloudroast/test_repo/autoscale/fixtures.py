@@ -11,8 +11,6 @@ from functools import partial
 
 from cafe.drivers.unittest.fixtures import BaseTestFixture
 
-from cloudcafe.common.resources import ResourcePool
-
 from autoscale.behaviors import AutoscaleBehaviors, rand_name
 from autoscale.client import (
     AutoscalingAPIClient, IdentityClient, LbaasAPIClient,
@@ -20,6 +18,33 @@ from autoscale.client import (
 )
 from autoscale.config import from_file
 from autoscale.otter_constants import OtterConstants
+
+
+class Resources(object):
+    """
+    Replacement for Cloudcafe Resource Pool.
+    """
+    def __init__(self):
+        """
+        Has a list.
+        """
+        self.resources = []
+
+    def add(self, resource_id, delete_function):
+        """
+        Add the resource to self.
+        """
+        self.resources.append((resource_id, delete_function))
+
+    def release(self):
+        """
+        Try to delete all the resources.
+        """
+        for resource_id, delete_function in self.resources:
+            try:
+                delete_function(resource_id)
+            except:
+                pass
 
 
 class AutoscaleFixture(BaseTestFixture):
@@ -33,7 +58,7 @@ class AutoscaleFixture(BaseTestFixture):
         Initialize autoscale configs, behaviors and client
         """
         super(AutoscaleFixture, cls).setUpClass()
-        cls.resources = ResourcePool()
+        cls.resources = Resources()
         cls.auth_config, cls.autoscale_config = from_file(
             os.getenv('CLOUDCAFE_CONFIG'))
 
