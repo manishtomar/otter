@@ -3,10 +3,10 @@ Client objects for all the autoscale api calls
 """
 from __future__ import print_function
 
-
 from urlparse import urlparse
 
-from cafe.engine.clients.rest import AutoMarshallingRestClient
+from characteristic import attributes, Attribute
+from requests import request
 
 from autoscale.models.lbaas import LoadBalancer, NodeList
 from autoscale.models.request.autoscale_requests import (
@@ -25,7 +25,56 @@ from autoscale.models.response.autoscale_response import (
 from autoscale.models.response.limits_response import Limits
 
 
-class AutoscalingAPIClient(AutoMarshallingRestClient):
+@attributes([Attribute('default_headers',
+                       default_factory=lambda: {
+                           'content-type': 'application/json',
+                           'accept': 'application/json'
+                       },
+                       instance_of=dict)])
+class BaseRestClient(object):
+    """
+    Base client that makes requests, logs, and serializes.
+
+    XX TODO: logging
+    """
+    def request(self, method, url, params=None, request_entity=None,
+                response_entity_type=None, requestslib_kwargs=None):
+        """
+        Make a request to the given URL using the given method.
+
+        :param str method: Method to be used to make request
+        :param str url: URL to make request to
+        :param dict params: Parameters in the URL to pass
+        :param request_entity: The cloudcafe request object to deserialize into
+            json and place in the request body
+        :param response_entity_type: The cloudcafe response object to serialize
+            a json response back into
+        """
+        request_params = {
+            "method": method,
+            "url": url,
+            "headers": self.default_headers,
+            "verify": True,
+        }
+        if params is not None:
+            request_params['params'] = params
+
+        if request_entity is not None:
+            request_params['data'] = request_entity._obj_to_json()
+
+        if requestslib_kwargs:
+            request_params.update(requestslib_kwargs)
+
+        response = request(**request_params)
+        response.entity = None
+        if response_entity_type:
+            response.entity = response_entity_type._json_to_obj(
+                response.content)
+
+        return response
+
+
+class AutoscalingAPIClient(BaseRestClient):
 
     """
     Client objects for all the autoscale api calls
@@ -33,15 +82,10 @@ class AutoscalingAPIClient(AutoMarshallingRestClient):
 
     def __init__(self, url, auth_token, serialize_format=None,
                  deserialize_format=None):
-        super(AutoscalingAPIClient, self).__init__(serialize_format,
-                                                   deserialize_format)
+        super(AutoscalingAPIClient, self).__init__()
         self.url = url
         self.auth_token = auth_token
         self.default_headers['X-Auth-Token'] = auth_token
-        self.default_headers['Content-Type'] = 'application/%s' % \
-                                               self.serialize_format
-        self.default_headers['Accept'] = 'application/%s' % \
-                                         self.deserialize_format
 
     def view_limits(self, url=None, requestslib_kwargs=None):
         """
@@ -801,7 +845,7 @@ class AutoscalingAPIClient(AutoMarshallingRestClient):
         return self.request('DELETE', url, params={'replace': replace})
 
 
-class LbaasAPIClient(AutoMarshallingRestClient):
+class LbaasAPIClient(BaseRestClient):
 
     """
     Client object for the list node lbaas api call
@@ -809,15 +853,10 @@ class LbaasAPIClient(AutoMarshallingRestClient):
 
     def __init__(self, url, auth_token, serialize_format=None,
                  deserialize_format=None):
-        super(LbaasAPIClient, self).__init__(serialize_format,
-                                             deserialize_format)
+        super(LbaasAPIClient, self).__init__()
         self.url = ''.join([url, '/loadbalancers'])
         self.auth_token = auth_token
         self.default_headers['X-Auth-Token'] = auth_token
-        self.default_headers['Content-Type'] = 'application/%s' % \
-                                               self.serialize_format
-        self.default_headers['Accept'] = 'application/%s' % \
-                                         self.deserialize_format
 
     def create_load_balancer(self, name, nodes, protocol, port, virtualIps,
                              halfClosed=None, accessList=None, algorithm=None,
@@ -904,7 +943,7 @@ class LbaasAPIClient(AutoMarshallingRestClient):
                             requestslib_kwargs=requestslib_kwargs)
 
 
-class RackConnectV3APIClient(AutoMarshallingRestClient):
+class RackConnectV3APIClient(BaseRestClient):
     """
     Client objects for all Rackconnect V3 API calls.
     """
