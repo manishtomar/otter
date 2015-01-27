@@ -1,9 +1,10 @@
 """
 Test execution of at and cron style scheduler policies when group has updates
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
 from time import sleep
-from cafe.drivers.unittest.decorators import tags
+
+from autoscale.behaviors import tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class UpdateSchedulerScalingPolicy(AutoscaleFixture):

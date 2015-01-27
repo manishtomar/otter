@@ -5,8 +5,7 @@ System Integration tests autoscaling with lbaas
 import random
 import time
 
-
-from cafe.drivers.unittest.decorators import tags
+from autoscale.behaviors import tags
 
 from test_repo.autoscale.fixtures import AutoscaleFixture
 

@@ -1,9 +1,10 @@
 """
 System tests to test execute webhook after the policy is updated
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
 from time import sleep
-from cafe.drivers.unittest.decorators import tags
+
+from autoscale.behaviors import tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class UpdatePoliciesExecuteWebhookTest(AutoscaleFixture):

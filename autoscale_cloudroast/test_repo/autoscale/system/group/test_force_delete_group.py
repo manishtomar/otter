@@ -1,8 +1,8 @@
 """
 System tests for force delete scaling group
 """
+from autoscale.behaviors import tags
 from test_repo.autoscale.fixtures import AutoscaleFixture
-from cafe.drivers.unittest.decorators import tags
 
 
 class ForceDeleteGroupTest(AutoscaleFixture):

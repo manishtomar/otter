@@ -1,10 +1,11 @@
 """
 System tests for account with multiple scaling groups
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
-from cafe.drivers.unittest.decorators import tags
 import time
 import unittest
+
+from autoscale.behaviors import tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class ScalingGroupMultiplesTest(AutoscaleFixture):

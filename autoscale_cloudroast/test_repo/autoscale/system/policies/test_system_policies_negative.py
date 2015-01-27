@@ -1,8 +1,8 @@
 """
 System tests for scaling policies negative scenarios
 """
+from autoscale.behaviors import tags
 from test_repo.autoscale.fixtures import AutoscaleFixture
-from cafe.drivers.unittest.decorators import tags
 
 
 class ScalingPoliciesNegativeFixture(AutoscaleFixture):

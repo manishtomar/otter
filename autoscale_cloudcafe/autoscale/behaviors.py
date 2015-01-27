@@ -682,3 +682,15 @@ def rand_name(prefix):
         prefix,
         "".join([random.choice(string.ascii_uppercase + string.digits)
                  for _ in range(8)]))
+
+
+def tags(**kwargs):
+    """
+    Stub decorator that does nothing currently.
+    """
+    def _real_decorator(func):
+        """
+        Don't actually change anything.
+        """
+        return func
+    return _real_decorator

@@ -1,9 +1,10 @@
 """
 Test to create and verify the listing webhooks.
 """
-from test_repo.autoscale.fixtures import ScalingGroupFixture
-from cafe.drivers.unittest.decorators import tags
 import unittest
+
+from autoscale.behaviors import tags
+from test_repo.autoscale.fixtures import ScalingGroupFixture
 
 
 class GetMaxManifest(ScalingGroupFixture):

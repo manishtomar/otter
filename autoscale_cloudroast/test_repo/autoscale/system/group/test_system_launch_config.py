@@ -3,9 +3,8 @@ System tests for launch config
 """
 import unittest
 
-from autoscale.behaviors import rand_name
+from autoscale.behaviors import rand_name, tags
 from test_repo.autoscale.fixtures import AutoscaleFixture
-from cafe.drivers.unittest.decorators import tags
 
 
 class LaunchConfigTest(AutoscaleFixture):

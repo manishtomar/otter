@@ -1,9 +1,10 @@
 """
 System tests for multiple scaling groups scenarios
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
 import base64
-from cafe.drivers.unittest.decorators import tags
+
+from autoscale.behaviors import tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class GroupFixture(AutoscaleFixture):

@@ -1,10 +1,10 @@
 """
 System Integration tests for otter's rbac roles
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
-from cafe.drivers.unittest.decorators import tags
+from autoscale.behaviors import tags
 from autoscale.client import AutoscalingAPIClient, IdentityClient
 from autoscale.config import AuthConfig
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class OtterRbacTests(AutoscaleFixture):

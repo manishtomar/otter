@@ -2,12 +2,11 @@
 Test negative scenarios for execution of at style and
 cron style scheduler policies
 """
-
-from test_repo.autoscale.fixtures import AutoscaleFixture
 from time import sleep
-from cafe.drivers.unittest.decorators import tags
-from autoscale.behaviors import rand_name
 import unittest
+
+from autoscale.behaviors import rand_name, tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class ExecuteNegativeSchedulerPolicy(AutoscaleFixture):

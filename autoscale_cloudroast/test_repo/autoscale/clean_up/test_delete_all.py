@@ -3,7 +3,7 @@ Delete resources created during tests which may not have been cleaned up.
 """
 import json
 
-from cafe.drivers.unittest.decorators import tags
+from autoscale.behaviors import tags
 from test_repo.autoscale.fixtures import AutoscaleFixture
 
 

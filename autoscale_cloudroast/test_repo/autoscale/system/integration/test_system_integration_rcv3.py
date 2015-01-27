@@ -3,18 +3,15 @@ System Integration tests for autoscaling with RackConnect V3 load balancers
 """
 from __future__ import print_function
 
-
 import random
 import time
 import unittest
-
-from cafe.drivers.unittest.decorators import tags
 
 import common
 
 from autoscale.behaviors import safe_hasattr
 
-from autoscale.behaviors import rand_name
+from autoscale.behaviors import rand_name, tags
 from test_repo.autoscale.fixtures import AutoscaleFixture
 
 

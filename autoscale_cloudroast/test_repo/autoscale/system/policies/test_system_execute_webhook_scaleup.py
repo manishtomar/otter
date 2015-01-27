@@ -1,8 +1,8 @@
 """
 System tests for scaling policies
 """
+from autoscale.behaviors import tags
 from test_repo.autoscale.fixtures import AutoscaleFixture
-from cafe.drivers.unittest.decorators import tags
 
 
 class ScalingUpExecuteWebhookTest(AutoscaleFixture):

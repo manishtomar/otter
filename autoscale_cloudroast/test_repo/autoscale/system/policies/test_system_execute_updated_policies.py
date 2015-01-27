@@ -1,9 +1,10 @@
 """
 System tests for execute updated policies
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
 from time import sleep
-from cafe.drivers.unittest.decorators import tags
+
+from autoscale.behaviors import tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class ExecuteUpdatedPoliciesTest(AutoscaleFixture):

@@ -1,10 +1,10 @@
 """
 System Integration tests autoscaling with repose
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from autoscale.behaviors import tags
 from autoscale.client import AutoscalingAPIClient, IdentityClient
 from autoscale.config import AuthConfig
-from cafe.drivers.unittest.decorators import tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class AutoscaleReposeUnauthTests(AutoscaleFixture):

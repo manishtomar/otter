@@ -2,9 +2,10 @@
 Test update scheduler policies are executed as expected before and after
 updates
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
 from time import sleep
-from cafe.drivers.unittest.decorators import tags
+
+from autoscale.behaviors import tags
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class UpdateSchedulerTests(AutoscaleFixture):
