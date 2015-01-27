@@ -12,9 +12,8 @@ from functools import partial
 from cafe.drivers.unittest.fixtures import BaseTestFixture
 
 from cloudcafe.common.resources import ResourcePool
-from cloudcafe.common.tools.datagen import rand_name
 
-from autoscale.behaviors import AutoscaleBehaviors
+from autoscale.behaviors import AutoscaleBehaviors, rand_name
 from autoscale.client import (
     AutoscalingAPIClient, IdentityClient, LbaasAPIClient,
     RackConnectV3APIClient, ServersClient

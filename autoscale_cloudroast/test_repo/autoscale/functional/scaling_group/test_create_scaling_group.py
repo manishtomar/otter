@@ -1,11 +1,11 @@
 """
 Test to create and verify the created group.
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
-from autoscale.models.request.autoscale_requests import null
-
 import base64
-from cloudcafe.common.tools.datagen import rand_name
+
+from autoscale.behaviors import rand_name
+from autoscale.models.request.autoscale_requests import null
+from test_repo.autoscale.fixtures import AutoscaleFixture
 
 
 class CreateScalingGroupTest(AutoscaleFixture):

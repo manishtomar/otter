@@ -3,9 +3,9 @@ Test to negative cases for launch config.
 """
 import unittest
 
+from autoscale.behaviors import rand_name
 from autoscale.models.request.autoscale_requests import null
 from test_repo.autoscale.fixtures import AutoscaleFixture
-from cloudcafe.common.tools.datagen import rand_name
 
 
 class LaunchConfigNegtaiveTest(AutoscaleFixture):

@@ -1,8 +1,8 @@
 """
 Test to verify list group config.
 """
+from autoscale.behaviors import rand_name
 from test_repo.autoscale.fixtures import AutoscaleFixture
-from cloudcafe.common.tools.datagen import rand_name
 
 
 class ListGroupConfigTest(AutoscaleFixture):

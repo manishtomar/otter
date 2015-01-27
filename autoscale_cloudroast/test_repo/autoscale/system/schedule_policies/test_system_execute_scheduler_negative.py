@@ -6,7 +6,7 @@ cron style scheduler policies
 from test_repo.autoscale.fixtures import AutoscaleFixture
 from time import sleep
 from cafe.drivers.unittest.decorators import tags
-from cloudcafe.common.tools.datagen import rand_name
+from autoscale.behaviors import rand_name
 import unittest
 
 
