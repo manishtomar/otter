@@ -3,10 +3,10 @@ Marshalling for server objects
 """
 import json
 import re
-from cafe.engine.models.base import AutoMarshallingModel
+from autoscale.models.util import BaseModel
 
 
-class NodeList(AutoMarshallingModel):
+class NodeList(BaseModel):
 
     """
     An object that represents the list of Load Balancer Nodes
@@ -45,7 +45,7 @@ class NodeList(AutoMarshallingModel):
         return node
 
 
-class LoadBalancer(AutoMarshallingModel):
+class LoadBalancer(BaseModel):
     """
     Marshalling and unmarshalling for create load balancer request and response
     """
@@ -146,7 +146,7 @@ class LoadBalancer(AutoMarshallingModel):
             ret = {}
             for key in value.keys():
                 ret[key] = self._auto_value_to_dict(value[key])
-        elif isinstance(value, AutoMarshallingModel):
+        elif isinstance(value, BaseModel):
             ret = value._obj_to_dict()
         return ret
 

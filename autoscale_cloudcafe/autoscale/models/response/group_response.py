@@ -1,13 +1,13 @@
 """
 Marshalling for group state responses
 """
-from cafe.engine.models.base import AutoMarshallingModel
-from autoscale.models.servers import Metadata, Network, \
-    Links, Personality
 import re
 
+from autoscale.models.servers import Metadata, Network, Links, Personality
+from autoscale.models.util import BaseModel
 
-class Active(AutoMarshallingModel):
+
+class Active(BaseModel):
     """
     Marshalling for group state's active state
     """
@@ -40,7 +40,7 @@ class Active(AutoMarshallingModel):
         return group
 
 
-class Pending(AutoMarshallingModel):
+class Pending(BaseModel):
     """
     Marshalling for group state's pending state
     """
@@ -71,7 +71,7 @@ class Pending(AutoMarshallingModel):
         return group
 
 
-class Server(AutoMarshallingModel):
+class Server(BaseModel):
     """
     Marshalling for server
     """
@@ -109,7 +109,7 @@ class Server(AutoMarshallingModel):
         return group
 
 
-class Lbaas(AutoMarshallingModel):
+class Lbaas(BaseModel):
     """
     Marshalling for lbaas
     """
@@ -137,7 +137,7 @@ class Lbaas(AutoMarshallingModel):
         return lbaas
 
 
-class PolicyArgs(AutoMarshallingModel):
+class PolicyArgs(BaseModel):
     """
     Marshalling for Args of the scheduler policy
     """

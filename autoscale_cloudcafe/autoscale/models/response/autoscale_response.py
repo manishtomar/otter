@@ -1,17 +1,18 @@
 """
 Marshalling for autoscale reponses
 """
-from cafe.engine.models.base import AutoMarshallingModel
+import json
+import re
+
 from autoscale.models.response.group_response import (Active, Server,
                                                       Lbaas, PolicyArgs)
 from autoscale.models.servers import Metadata, Links
-import json
-import re
+from autoscale.models.util import BaseModel
 
 _NOTFOUND = object()
 
 
-class ScalingGroup(AutoMarshallingModel):
+class ScalingGroup(BaseModel):
 
     """
     Marshalling for scaling group responses
@@ -73,7 +74,7 @@ class ScalingGroup(AutoMarshallingModel):
         return Group(id=self.id, links=self.links)
 
 
-class Group(AutoMarshallingModel):
+class Group(BaseModel):
 
     """
     works for the autoscaling groups configs amd launch configs
@@ -117,7 +118,7 @@ class Group(AutoMarshallingModel):
         return group
 
 
-class Groups(AutoMarshallingModel):
+class Groups(BaseModel):
 
     """
     works for list scaling groups
@@ -150,7 +151,7 @@ class Groups(AutoMarshallingModel):
         return groups
 
 
-class Config(AutoMarshallingModel):
+class Config(BaseModel):
 
     """
     works for the autoscaling groups configs amd launch configs
@@ -199,7 +200,7 @@ class Config(AutoMarshallingModel):
         return config
 
 
-class Policy(AutoMarshallingModel):
+class Policy(BaseModel):
 
     """
     works for the autoscaling policies, but does not include a "policies_links" attribute.
@@ -251,7 +252,7 @@ class Policy(AutoMarshallingModel):
         return policy
 
 
-class Policies(AutoMarshallingModel):
+class Policies(BaseModel):
     """
     A marshalling object that works for paginated scaling group policies
     """
@@ -287,7 +288,7 @@ class Policies(AutoMarshallingModel):
         return policies
 
 
-class Webhook(AutoMarshallingModel):
+class Webhook(BaseModel):
 
     """
     works for autoscaling policies' webhooks
@@ -337,7 +338,7 @@ class Webhook(AutoMarshallingModel):
         return webhook
 
 
-class Webhooks(AutoMarshallingModel):
+class Webhooks(BaseModel):
     """
     Response object for paginated webhooks
     """
@@ -368,7 +369,7 @@ class Webhooks(AutoMarshallingModel):
         return webhooks
 
 
-class Audit(AutoMarshallingModel):
+class Audit(BaseModel):
     """
     A marshalling object for audit log returned by the history resource
     The log consists of a timestamp ordered list of events (HistoryEvent objects)
@@ -402,7 +403,7 @@ class Audit(AutoMarshallingModel):
         return history
 
 
-class HistoryEvent(AutoMarshallingModel):
+class HistoryEvent(BaseModel):
     """
     A marshalling object for the events in the audit log produced by the history API call
     """
@@ -434,7 +435,7 @@ class HistoryEvent(AutoMarshallingModel):
         return event
 
 
-class RackConnectLBPool(AutoMarshallingModel):
+class RackConnectLBPool(BaseModel):
     """
     Works for RackConnect V3 Load Balancer Pool (note singular!) See also
     RackConnectLBPools if you need to touch multiple instances.
@@ -463,7 +464,7 @@ class RackConnectLBPool(AutoMarshallingModel):
         return RackConnectLBPool(**pool_dict)
 
 
-class RackConnectLBPools(AutoMarshallingModel):
+class RackConnectLBPools(BaseModel):
     """
     Works for RackConnect V3 Load Balancer Pools (note plural!) The pools
     member will contain a list of RackConnectLBPool objects.  See also
@@ -501,7 +502,7 @@ class RackConnectLBPools(AutoMarshallingModel):
         return RackConnectLBPools(pool_list)
 
 
-class RackConnectLBNode(AutoMarshallingModel):
+class RackConnectLBNode(BaseModel):
     """
     Works for a RackConnect V3 Load Balancer Node (note singular!) See also
     RackConnectLBNodes if you need to touch multiple instances.
@@ -530,7 +531,7 @@ class RackConnectLBNode(AutoMarshallingModel):
         return RackConnectLBNode(**node_dict)
 
 
-class RackConnectLBNodes(AutoMarshallingModel):
+class RackConnectLBNodes(BaseModel):
     """
     Works for RackConnect V3 Load Balancer Nodes (note plural!) The
     member nodes will contain a list of RackConnectLBNode objects.  See also
@@ -568,7 +569,7 @@ class RackConnectLBNodes(AutoMarshallingModel):
         return RackConnectLBNodes(node_list)
 
 
-class RackConnectLBNodeDetail(AutoMarshallingModel):
+class RackConnectLBNodeDetail(BaseModel):
     """
     Works for a RackConnect V3 Load Balancer Node (note singular!) See also
     RackConnectLBNodes if you need to touch multiple instances.
@@ -597,7 +598,7 @@ class RackConnectLBNodeDetail(AutoMarshallingModel):
         return RackConnectLBNodeDetail(**node_dict)
 
 
-class RackConnectNetworkInfo(AutoMarshallingModel):
+class RackConnectNetworkInfo(BaseModel):
     """
     Works for a RackConnect V3 cloud network.
     """

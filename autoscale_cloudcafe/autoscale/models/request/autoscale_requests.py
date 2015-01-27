@@ -3,7 +3,7 @@ Marshalling for autoscale requests
 """
 from collections import namedtuple
 
-from cafe.engine.models.base import AutoMarshallingModel
+from autoscale.models.util import BaseModel
 from cloudcafe.compute.servers_api.models.requests import CreateServer
 import json
 
@@ -12,7 +12,7 @@ _NullArg = namedtuple("JSONNull", [])
 null = _NullArg()
 
 
-class Webhook_Request(AutoMarshallingModel):
+class Webhook_Request(BaseModel):
 
     """
     Marshalling for webhook requests
@@ -30,7 +30,7 @@ class Webhook_Request(AutoMarshallingModel):
         return json.dumps(req)
 
 
-class Webhook_Multi_Request(AutoMarshallingModel):
+class Webhook_Multi_Request(BaseModel):
 
     """
     Marshalling for webhook batch requests
@@ -46,7 +46,7 @@ class Webhook_Multi_Request(AutoMarshallingModel):
         return json.dumps(req_list)
 
 
-class Update_Webhook_Request(AutoMarshallingModel):
+class Update_Webhook_Request(BaseModel):
 
     """
     Marshalling for update webhook requests
@@ -62,7 +62,7 @@ class Update_Webhook_Request(AutoMarshallingModel):
         return json.dumps(self._auto_to_dict())
 
 
-class Policy_Request(AutoMarshallingModel):
+class Policy_Request(BaseModel):
 
     """
     Marshalling for policy requests
@@ -85,7 +85,7 @@ class Policy_Request(AutoMarshallingModel):
         return json.dumps(req)
 
 
-class Policy_Batch_Request(AutoMarshallingModel):
+class Policy_Batch_Request(BaseModel):
 
     """
     Marshalling for policy batch requests
@@ -101,7 +101,7 @@ class Policy_Batch_Request(AutoMarshallingModel):
         return json.dumps(req_list)
 
 
-class Update_Policy_Request(AutoMarshallingModel):
+class Update_Policy_Request(BaseModel):
 
     """
     Marshalling for update policy requests
@@ -122,7 +122,7 @@ class Update_Policy_Request(AutoMarshallingModel):
         return json.dumps(self._auto_to_dict())
 
 
-class Maas_Policy_Request(AutoMarshallingModel):
+class Maas_Policy_Request(BaseModel):
 
     """
     Marshalling for maas policy requests
@@ -201,7 +201,7 @@ class Maas_Policy_Request(AutoMarshallingModel):
         return json.dumps(body)
 
 
-class Update_Maas_Policy_Request(AutoMarshallingModel):
+class Update_Maas_Policy_Request(BaseModel):
 
     """
     Marshalling for maas policy requests
@@ -265,7 +265,7 @@ class Update_Maas_Policy_Request(AutoMarshallingModel):
         return json.dumps(body)
 
 
-class Group_Request(AutoMarshallingModel):
+class Group_Request(BaseModel):
 
     """
     Marshalling for group requests
@@ -284,7 +284,7 @@ class Group_Request(AutoMarshallingModel):
         return json.dumps(self._auto_to_dict())
 
 
-class Config_Request(AutoMarshallingModel):
+class Config_Request(BaseModel):
 
     """
     Marshalling for group config requests
@@ -334,7 +334,7 @@ class Config_Request(AutoMarshallingModel):
         return json.dumps(body)
 
 
-class ScalingGroup_Request(AutoMarshallingModel):
+class ScalingGroup_Request(BaseModel):
 
     """
     Marshalling for scaling group requests

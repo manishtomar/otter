@@ -3,15 +3,17 @@ Marshalling for server objects
 """
 import json
 from cloudcafe.compute.common.equality_tools import EqualityTools
-from cafe.engine.models.base import AutoMarshallingModel
+
+from autoscale.models.util import BaseModel
 
 
-class Metadata(AutoMarshallingModel):
+class Metadata(BaseModel):
 
     """
     :summary: Metadata Request Object for Server
     """
     def __init__(self, metadata_dict):
+        super(Metadata, self).__init__()
         for key, value in metadata_dict.items():
             setattr(self, key, value)
 
@@ -71,7 +73,7 @@ class Metadata(AutoMarshallingModel):
         return not self == other
 
 
-class Links(AutoMarshallingModel):
+class Links(BaseModel):
 
     """
     :summary: Represents links (url) in the system
@@ -106,7 +108,7 @@ class Links(AutoMarshallingModel):
         return Links(list_of_links)
 
 
-class Network(AutoMarshallingModel):
+class Network(BaseModel):
 
     """
     :summary: Represents networks in the system
@@ -135,7 +137,7 @@ class Network(AutoMarshallingModel):
         return network
 
 
-class Personality(AutoMarshallingModel):
+class Personality(BaseModel):
 
     """
     :summary: Represents networks in the system

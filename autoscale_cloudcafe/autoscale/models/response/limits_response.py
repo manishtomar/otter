@@ -1,12 +1,13 @@
 """
 Marshalling for autoscale reponses
 """
-from cafe.engine.models.base import AutoMarshallingModel
 import json
 import re
 
+from autoscale.models.util import BaseModel
 
-class Limits(AutoMarshallingModel):
+
+class Limits(BaseModel):
 
     """
     works for limits call
@@ -46,7 +47,7 @@ class Limits(AutoMarshallingModel):
         return limits
 
 
-class RateLimit(AutoMarshallingModel):
+class RateLimit(BaseModel):
 
     """
     :summary: Represents networks in the system
@@ -77,7 +78,7 @@ class RateLimit(AutoMarshallingModel):
         return rate
 
 
-class Rate(AutoMarshallingModel):
+class Rate(BaseModel):
 
     """
     :summary: Represents networks in the system
@@ -114,7 +115,7 @@ class Rate(AutoMarshallingModel):
         return rate
 
 
-class Absolute(AutoMarshallingModel):
+class Absolute(BaseModel):
 
     """
     Absolute limit
