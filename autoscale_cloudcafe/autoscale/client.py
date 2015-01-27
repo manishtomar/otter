@@ -3,6 +3,9 @@ Client objects for all the autoscale api calls
 """
 from __future__ import print_function
 
+from logging import getLogger
+from textwrap import dedent
+from time import time
 from urlparse import urlparse
 
 from characteristic import attributes, Attribute
@@ -30,12 +33,11 @@ from autoscale.models.response.limits_response import Limits
                            'content-type': 'application/json',
                            'accept': 'application/json'
                        },
-                       instance_of=dict)])
+                       instance_of=dict),
+             Attribute('logger', default_factory=getLogger)])
 class BaseRestClient(object):
     """
     Base client that makes requests, logs, and serializes.
-
-    XX TODO: logging
     """
     def request(self, method, url, params=None, request_entity=None,
                 response_entity_type=None, requestslib_kwargs=None):
@@ -65,11 +67,44 @@ class BaseRestClient(object):
         if requestslib_kwargs:
             request_params.update(requestslib_kwargs)
 
+        start = time()
         response = request(**request_params)
+        end = time()
         response.entity = None
         if response_entity_type:
             response.entity = response_entity_type._json_to_obj(
                 response.content)
+
+        self.logger.debug(dedent("""
+        ------------
+        REQUEST SENT
+        ------------
+        request method..: {method}
+        request url.....: {url}
+        request headers.: {request_headers}
+        request body....: {request_body}
+
+        -----------------
+        RESPONSE RECEIVED
+        -----------------
+        response status..: {status_code}
+        response headers.: {response_headers}
+        response body....: {response_body}
+        response time....: {time_taken}
+        marshalled as....: {marshaller}
+
+        """.format(
+            method=response.request.method,
+            url=response.request.url,
+            request_headers=response.request.headers,
+            request_body=response.request.body,
+            status_code=response.status_code,
+            response_headers=response.headers,
+            response_body=response.content,
+            time_taken=(end - start),
+            marshaller=(response_entity_type.__name__ if response_entity_type
+                        else None)
+        )))
 
         return response
 
