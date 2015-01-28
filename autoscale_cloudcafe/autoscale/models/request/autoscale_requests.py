@@ -317,15 +317,9 @@ class Config_Request(BaseModel):
             "networks": self.networks,
             "block_device_mapping": self.block_device_mapping
         }
-        server_json = CreateServer(**kwargs)._obj_to_json()
-        server_json = json.loads(server_json)
-        # allow null args specifically - cloudcafe removes any that are None
-        for k, v in kwargs.iteritems():
-            if v is null:
-                server_json['server'][k] = None
 
         body = {'type': 'launch_server',
-                'args': server_json}
+                'args': CreateServer(**kwargs)._obj_to_dict()}
         if self.load_balancers:
             body['args']['loadBalancers'] = self.load_balancers
 
@@ -399,7 +393,7 @@ class CreateServer(BaseModel):
     """
     Simplified model from Cloudcafe required for :class:`Config_Request`.
     """
-    def _obj_to_json(self):
+    def _obj_to_dict(self):
 
         if self.personality == []:
             self.personality = None
@@ -420,4 +414,10 @@ class CreateServer(BaseModel):
             'config_drive': self.config_drive,
         }
 
-        return json.dumps({'server': valfilter(lambda v: v is not None, body)})
+        no_nones = valfilter(lambda v: v is not None, body)
+
+        for k in no_nones:
+            if no_nones[k] is null:
+                no_nones[k] = None
+
+        return {'server': no_nones}
