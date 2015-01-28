@@ -1002,10 +1002,6 @@ class RackConnectV3APIClient(BaseRestClient):
         self.url = url
         self.auth_token = auth_token
         self.default_headers['X-Auth-Token'] = auth_token
-        self.default_headers['Content-Type'] = (
-            'application/%s' % (self.serialize_format,))
-        self.default_headers['Accept'] = 'application/%s' % (
-            (self.deserialize_format,))
 
     def list_pools(self):
         """
