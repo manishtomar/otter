@@ -4,7 +4,12 @@ Test execution of at and cron style scheduler policies when group has updates
 from time import sleep
 
 from autoscale.behaviors import tags
-from test_repo.autoscale.fixtures import AutoscaleFixture
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class UpdateSchedulerScalingPolicy(AutoscaleFixture):

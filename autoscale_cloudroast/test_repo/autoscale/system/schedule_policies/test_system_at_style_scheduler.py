@@ -5,7 +5,12 @@ change percent and desired caapacity
 from time import sleep
 
 from autoscale.behaviors import tags
-from test_repo.autoscale.fixtures import AutoscaleFixture
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class AtStyleSchedulerTests(AutoscaleFixture):

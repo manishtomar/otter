@@ -6,7 +6,12 @@ from time import sleep
 import unittest
 
 from autoscale.behaviors import rand_name, tags
-from test_repo.autoscale.fixtures import AutoscaleFixture
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ExecuteNegativeSchedulerPolicy(AutoscaleFixture):
