@@ -1,8 +1,13 @@
 """
 Test the non-scenario specific audit log functions.
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
 import unittest
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class AuditLogBasicsTest(AutoscaleFixture):

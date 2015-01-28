@@ -1,7 +1,11 @@
 """
 Test to delete the policy and verify.
 """
-from test_repo.autoscale.fixtures import ScalingGroupPolicyFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupPolicyFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class DeleteScalingPolicy(ScalingGroupPolicyFixture):

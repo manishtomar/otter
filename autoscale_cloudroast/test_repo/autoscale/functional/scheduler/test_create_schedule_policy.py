@@ -1,7 +1,11 @@
 """
 Test to create and verify a schedule policy.
 """
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class CreateScheduleScalingPolicy(ScalingGroupFixture):

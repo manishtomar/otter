@@ -4,7 +4,12 @@ Test to create and verify a cloud monitoring policy
 import unittest
 
 from autoscale.behaviors import rand_name
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 @unittest.skip('Not yet implemented')

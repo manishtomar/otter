@@ -1,7 +1,11 @@
 """
 Test for negative scenarios to a scaling policy of type schedule.
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ScheduleScalingPolicyNegative(AutoscaleFixture):

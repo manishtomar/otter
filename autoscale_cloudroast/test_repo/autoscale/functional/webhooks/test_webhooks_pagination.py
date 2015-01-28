@@ -3,7 +3,11 @@ Test to verify the pagination of a list of webhooks.
 """
 import unittest
 
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class PaginateWebhooks(AutoscaleFixture):

@@ -2,7 +2,12 @@
 Test to list and verify a cloud monitoring policies
 """
 import unittest
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 @unittest.skip('Not yet implemented')

@@ -1,7 +1,11 @@
 """
 Test to create and verify delete group.
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class DeleteScalingGroupTest(AutoscaleFixture):

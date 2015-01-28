@@ -1,7 +1,11 @@
 """
 Test to verify a webhok can be deleted successfully.
 """
-from test_repo.autoscale.fixtures import ScalingGroupWebhookFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupWebhookFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class DeleteWebhook(ScalingGroupWebhookFixture):

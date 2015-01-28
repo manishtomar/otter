@@ -3,7 +3,11 @@ Test for launch config's personality validation.
 """
 import base64
 
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class LaunchConfigPersonalityTest(AutoscaleFixture):

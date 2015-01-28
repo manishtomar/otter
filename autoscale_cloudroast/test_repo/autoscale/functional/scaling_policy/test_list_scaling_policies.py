@@ -1,7 +1,11 @@
 """
 Test to create and verify the listing policies.
 """
-from test_repo.autoscale.fixtures import ScalingGroupPolicyFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupPolicyFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ListScalingPolicies(ScalingGroupPolicyFixture):

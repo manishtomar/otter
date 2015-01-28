@@ -1,7 +1,11 @@
 """
 Test to create and verify the listing webhooks.
 """
-from test_repo.autoscale.fixtures import ScalingGroupPolicyFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupPolicyFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ListWebhooks(ScalingGroupPolicyFixture):

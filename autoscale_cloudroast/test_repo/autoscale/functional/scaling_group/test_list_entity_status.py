@@ -1,7 +1,11 @@
 """
 Test to create and verify the state of the group.
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class GetListEntityStatusTest(AutoscaleFixture):

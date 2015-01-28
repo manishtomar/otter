@@ -1,7 +1,11 @@
 """
 Test to create and verify the created policy.
 """
-from test_repo.autoscale.fixtures import ScalingGroupPolicyFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupPolicyFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class CreateScalingPolicy(ScalingGroupPolicyFixture):

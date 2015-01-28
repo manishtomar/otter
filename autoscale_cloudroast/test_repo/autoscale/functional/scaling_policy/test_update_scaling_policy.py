@@ -1,7 +1,11 @@
 """
 Test to update and verify the updated policy.
 """
-from test_repo.autoscale.fixtures import ScalingGroupPolicyFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupPolicyFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class UpdateScalingPolicy(ScalingGroupPolicyFixture):

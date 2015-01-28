@@ -1,7 +1,11 @@
 """
 Test to update and verify the updated scheduler policy.
 """
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class UpdateSchedulerScalingPolicy(ScalingGroupFixture):

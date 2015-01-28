@@ -1,8 +1,13 @@
 """
 Test negative scenarios for a scaling group.
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
 from autoscale.status_codes import HttpStatusCodes
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ScalingGroupNegative(AutoscaleFixture):

@@ -3,7 +3,12 @@ Test to update launch config.
 """
 from autoscale.behaviors import rand_name
 from autoscale.models.request.autoscale_requests import null
-from test_repo.autoscale.fixtures import AutoscaleFixture
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class UpdateLaunchConfigTest(AutoscaleFixture):

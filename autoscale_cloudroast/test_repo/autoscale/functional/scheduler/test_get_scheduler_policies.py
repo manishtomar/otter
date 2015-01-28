@@ -1,7 +1,11 @@
 """
 Test get scheduler policies (at and cron style).
 """
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class GetSchedulerScalingPolicy(ScalingGroupFixture):

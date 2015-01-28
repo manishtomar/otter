@@ -1,7 +1,11 @@
 """
 Test to delete the scheduler policy and verify.
 """
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class DeleteSchedulerPolicy(ScalingGroupFixture):

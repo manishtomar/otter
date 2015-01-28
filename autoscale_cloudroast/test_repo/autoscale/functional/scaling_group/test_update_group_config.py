@@ -2,7 +2,12 @@
 Test to create and update the created group.
 """
 from autoscale.behaviors import rand_name
-from test_repo.autoscale.fixtures import AutoscaleFixture
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class UpdateGroupConfigTest(AutoscaleFixture):

@@ -4,7 +4,12 @@ Test to create and verify the listing webhooks.
 import unittest
 
 from autoscale.behaviors import tags
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class GetMaxManifest(ScalingGroupFixture):

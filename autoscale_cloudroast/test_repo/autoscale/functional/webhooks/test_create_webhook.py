@@ -1,7 +1,11 @@
 """
 Test to create and verify the created webhook
 """
-from test_repo.autoscale.fixtures import ScalingGroupWebhookFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupWebhookFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class CreateWebhook(ScalingGroupWebhookFixture):

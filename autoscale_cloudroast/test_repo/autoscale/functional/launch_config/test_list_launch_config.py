@@ -1,7 +1,11 @@
 """
 Test to launch config of a group.
 """
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ListLaunchConfigTest(AutoscaleFixture):

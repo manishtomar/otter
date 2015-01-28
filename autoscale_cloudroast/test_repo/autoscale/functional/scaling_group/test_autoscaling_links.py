@@ -3,7 +3,12 @@ Test to verify the links on the autoscaling api responses.
 """
 import re
 from urlparse import urlparse
-from test_repo.autoscale.fixtures import ScalingGroupWebhookFixture
+
+from test_repo.autoscale.fixtures import (
+    ScalingGroupWebhookFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class AutoscalingLinksTest(ScalingGroupWebhookFixture):

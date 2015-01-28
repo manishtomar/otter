@@ -3,7 +3,11 @@ Test to delete and verify a cloud monitoring policy
 """
 import unittest
 
-from test_repo.autoscale.fixtures import ScalingGroupFixture
+from test_repo.autoscale.fixtures import (
+    ScalingGroupFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 @unittest.skip('Not yet implemented')
