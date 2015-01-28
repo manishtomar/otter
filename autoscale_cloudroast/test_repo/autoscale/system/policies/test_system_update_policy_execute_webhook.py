@@ -4,7 +4,12 @@ System tests to test execute webhook after the policy is updated
 from time import sleep
 
 from autoscale.behaviors import tags
-from test_repo.autoscale.fixtures import AutoscaleFixture
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class UpdatePoliciesExecuteWebhookTest(AutoscaleFixture):

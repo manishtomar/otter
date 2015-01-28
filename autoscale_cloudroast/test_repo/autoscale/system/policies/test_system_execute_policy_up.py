@@ -2,7 +2,12 @@
 System tests for execute policy
 """
 from autoscale.behaviors import tags
-from test_repo.autoscale.fixtures import AutoscaleFixture
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ExecutePoliciesUpTest(AutoscaleFixture):
