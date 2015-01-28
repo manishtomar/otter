@@ -7,9 +7,13 @@ import time
 
 from autoscale.behaviors import tags
 
-from test_repo.autoscale.fixtures import AutoscaleFixture
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
 
 from . import common
+
+
+setUpClassSupportingHook(globals())
 
 
 class AutoscaleLbaasFixture(AutoscaleFixture):
