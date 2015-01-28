@@ -1,10 +1,15 @@
 """
 Tests for `/groups/<groupId>/servers/` endpoint
 """
-from autoscale.behaviors import tags
-from test_repo.autoscale.fixtures import AutoscaleFixture
-
 import time
+
+from autoscale.behaviors import tags
+
+from test_repo.autoscale.fixtures import (
+    AutoscaleFixture, setUpClassSupportingHook)
+
+
+setUpClassSupportingHook(globals())
 
 
 class ServersTests(AutoscaleFixture):
