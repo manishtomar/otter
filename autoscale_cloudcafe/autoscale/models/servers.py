@@ -157,7 +157,6 @@ class Personality(BaseModel):
              Attribute('progress', default_value=None),
              Attribute('task_state', default_value=None),
              Attribute('vm_state', default_value=None),
-             Attribute('name', default_value=None),
              Attribute('tenant_id', default_value=None),
              Attribute('status', default_value=None),
              Attribute('updated', default_value=None),
