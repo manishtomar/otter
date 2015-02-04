@@ -11,6 +11,7 @@ import json
 from twisted.web.client import HTTPConnectionPool
 from characteristic import attributes
 from twisted.internet.defer import inlineCallbacks, gatherResults
+from functools import partial
 
 
 @attributes(['tenant_id', 'token', 'catalog'])
@@ -98,6 +99,27 @@ def delete_servers_using_nova(user_info, server_id_list, pool):
     return d3
 
 
+def trigger_convergence(user_info, group_id, pool):
+    """
+    Using the given user info, trigger convergence on a group
+    """
+    # For now, we get the group config, and resubmit it
+    config_url = append_segments(user_info.get_autoscale_endpoint,
+                                 'groups', group_id, 'config')
+    d4 = treq.get(
+        config_url,
+        headers=headers(user_info.token),
+        pool=pool)
+    d4.addCallback(check_success, [200])
+    d4.addCallback(treq.json_content)
+    d4.addCallback(lambda config_blob: json.dumps(
+                   config_blob['groupConfiguration']))
+    d4.addCallback(partial(treq.put, config_url),
+                   headers=headers(user_info.token), pool=pool)
+    d4.addCallback(check_success, [204])
+    d4.addCallback(treq.content)
+
+    return d4
 
 
 class ConvergenceTestCase(TestCase):
@@ -132,8 +154,6 @@ class ConvergenceTestCase(TestCase):
                                                     username, password,
                                                     pool=self.pool)
 
-
-
         user_data = UserInfo.from_identity_response(identity_response)
 
         # Create a scaling group
@@ -149,7 +169,8 @@ class ConvergenceTestCase(TestCase):
                     "server": {
                         "flavorRef": 'performance1-1',
                         "name": "A",
-                        "imageRef": "aab63bcf-89aa-440f-b0c7-c7a1c611914b"
+                        "imageRef": "aab63bcf-89aa-440f-b0c7-c7a1c611914b"  # ,
+                        # "metadata": {"server_building":"3"}
                     }
                 }
             }
@@ -157,12 +178,13 @@ class ConvergenceTestCase(TestCase):
 
         # If this works, d should now contain the json_content dict from the
         # group creation
-        group_response = yield create_scaling_group(user_data, group_blob, self.pool)
+        group_response = yield create_scaling_group(user_data, group_blob,
+                                                    self.pool)
         print(group_response)
 
         # Check with Nova to confirm
-        server_details = yield get_servers_using_nova_metadata(user_data,
-            group_response['group']['id'], self.pool)
+        server_details = yield get_servers_using_nova_metadata(
+            user_data, group_response['group']['id'], self.pool)
 
         self.assertEquals(len(server_details), 1)
 
@@ -174,6 +196,29 @@ class ConvergenceTestCase(TestCase):
                                                            server_id_list,
                                                            self.pool)
         print(delete_responses)
+
+        # Confirm the server deleted
+        # Check with Nova to confirm
+        server_details = yield get_servers_using_nova_metadata(
+            user_data, group_response['group']['id'], self.pool)
+
+        self.assertEquals(len(server_details), 0)
+
+        # Trigger a converge event
+        # In this case, we trigger by updating the group config
+        yield trigger_convergence(user_data, group_response['group']['id'],
+                                  self.pool)
+
+        # Expect to have the group match the desired number of servers
+        # after x amount of time
+
+        # Poll Nova, assert desired capacity is still the same, check if
+        # number of servers in nova matches desired capacity
+        # Check with Nova to confirm
+
+        polled_servers = yield get_servers_using_nova_metadata(
+            user_data, group_response['group']['id'], self.pool)
+
 
 
 
