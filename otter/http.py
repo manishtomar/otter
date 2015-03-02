@@ -160,6 +160,7 @@ def concretize_service_request(
     service_name = service_config['name']
 
     def got_auth((token, catalog)):
+        print 'got auth', token
         request_ = add_headers(otter_headers(token), request)
         request_ = add_effect_on_response(
             invalidate_eff, service_request.reauth_codes, request_)
@@ -173,12 +174,15 @@ def concretize_service_request(
             request_ = add_json_response(request_)
         request_ = add_error_handling(
             service_request.success_pred, request_)
-        return request_(
+        req = request_(
             service_request.method,
             service_request.url,
             headers=service_request.headers,
             data=service_request.data,
             log=log)
+        print 'final request', req
+        return req
+    print 'authing'
     return auth_eff.on(got_auth)
 
 

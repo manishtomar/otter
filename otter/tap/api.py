@@ -235,11 +235,14 @@ def makeService(config):
     # setup cloud feed
     cf_conf = config.get('cloudfeeds', None)
     if cf_conf is not None:
+        config['identity']['strategy'] = 'single_tenant'
         addObserver(
             CloudFeedsObserver(
-                reactor=reactor, authenticator=authenticator,
+                reactor=reactor,
+                authenticator=generate_authenticator(reactor, config['identity']),
                 region=region, tenant_id=cf_conf['tenant_id'],
                 service_configs=service_configs))
+        reactor.callLater(2, log.msg, 'testing cf', cloud_feed=True)
 
     # Setup Kazoo client
     if config_value('zookeeper'):

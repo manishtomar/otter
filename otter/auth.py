@@ -174,6 +174,7 @@ class CachingAuthenticator(object):
         self._cache = {}
         self._log = self._bind_log(default_log)
         self._auth_func = wait(ignore_kwargs=['log'])(self._authenticator.authenticate_tenant)
+        #self._auth_func = self._authenticator.authenticate_tenant
 
     def _bind_log(self, log, **kwargs):
         """
@@ -308,7 +309,8 @@ class SingleTenantAuthenticator(object):
                               expire_in=10800,
                               log=log)
         d.addCallback(
-            lambda json: (extract_token(json), extract_service_catalog(json)))
+            lambda _json: (extract_token(_json),
+                           extract_service_catalog(_json)))
         return d
 
     def __hash__(self):
@@ -338,7 +340,7 @@ def extract_service_catalog(auth_response):
         from the authentication API.
     :rtype: str
     """
-    return auth_response['service_catalog']
+    return auth_response['access']['serviceCatalog']
 
 
 def endpoints_for_token(auth_endpoint, identity_admin_token, user_token,
@@ -412,8 +414,6 @@ def authenticate_user(auth_endpoint, username, password, tenant_id=None,
     }
     if tenant_id:
         request['auth']['tenantId'] = tenant_id
-    if expire_in:
-        request['auth']['expire-in-seconds'] = expire_in
 
     d = treq.post(
         append_segments(auth_endpoint, 'tokens'),

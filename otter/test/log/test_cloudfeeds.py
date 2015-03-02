@@ -124,6 +124,76 @@ class SanitizeEventTests(SynchronousTestCase):
         self._check_santized_event(False)
 
 
+from otter.auth import SingleTenantAuthenticator, CachingAuthenticator
+from otter.log.formatters import PEP3101FormattingWrapper, JSONObserverWrapper, StreamObserverWrapper
+from otter.constants import ServiceType
+from twisted.internet import reactor
+from twisted.trial.unittest import TestCase
+from twisted.python import log as tlog
+import sys
+
+class RealAddTest(TestCase):
+    def setUp(self):
+        self.req = {
+            "entry": {
+                "@type": "http://www.w3.org/2005/Atom",
+                "title": "autoscale",
+                "content": {
+                    "event": {
+                        "@type": "http://docs.rackspace.com/core/event",
+                        "id": str(uuid.uuid1()),
+                        "version": "1",
+                        "eventTime": "1970-01-01T00:00:00",
+                        "type": "INFO",
+                        "region": "ORD",
+                        "dataCenter": "ORD1",
+                        "product": {
+                            "@type": ("http://docs.rackspace.com/event/"
+                                      "autoscale"),
+                            "serviceCode": "Autoscale",
+                            "version": "1",
+                            "scalingGroupId": str(uuid.uuid1()),
+                            "username": "abc",
+                            "desiredCapacity": 5,
+                            "currentCapacity": 3,
+                            "message": "human"
+                        }
+                    }
+                }
+            }
+        }
+        #tlog.startLogging(sys.stdout)
+        tlog.startLoggingWithObserver(
+            PEP3101FormattingWrapper(
+                JSONObserverWrapper(
+                    StreamObserverWrapper(sys.stdout))),
+            False)
+        #tlog.FileLogObserver(sys.stdout).emit)),
+        #o = PEP3101FormattingWrapper(tlog.defaultObserver)
+        #tlog.addObserver(o)
+        from otter.test.utils import mock_log
+        self.cf = CloudFeedsObserver(
+            reactor=reactor,
+            authenticator=CachingAuthenticator(
+                reactor,
+                SingleTenantAuthenticator(
+                    'autoscale', '!PUt%T^D^2IZnNaM',
+                    'https://staging.identity.api.rackspacecloud.com/v2.0/'),
+                3600),
+            tenant_id="-200678", region='ORD',
+            service_configs={ServiceType.CLOUD_FEEDS: {
+                'name': 'cloudFeeds', 'region': 'ORD',
+                'url': 'https://atom.staging.ord1.us.ci.rackspace.net/'}},
+            log=mock_log())
+            #log=BoundLog(tlog.msg, tlog.err))
+
+    def test_1(self):
+        event, cf_event = sample_event_pair()
+        event['cloud_feed'] = True
+        return self.cf(event)
+
+
+
 class EventTests(SynchronousTestCase):
     """
     Tests for :func:`otter.log.cloudfeeds.add_event` :func:`prepare_request`
