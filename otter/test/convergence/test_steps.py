@@ -649,13 +649,6 @@ class StepAsEffectTests(SynchronousTestCase):
             StubResponse(422, {}),
             {
                 "message": "Load Balancer '12345' has a status of "
-                           "'PENDING_UPDATE' and is considered immutable.",
-                "code": 422
-            }))
-        self.assertTrue(predicate(
-            StubResponse(422, {}),
-            {
-                "message": "Load Balancer '12345' has a status of "
                            "'PENDING_DELETE' and is considered immutable.",
                 "code": 422
             }))
@@ -669,6 +662,19 @@ class StepAsEffectTests(SynchronousTestCase):
                            "balancer.",
                 "code": 422
             }))
+
+    def test_remove_nodes_from_clb_immutable(self):
+        """
+        :obj:`RemoveNodesFromCLB`, on receiving a 422, with PENDING_UPDATE
+        returns Step.RETRY
+        """
+        self.assertTrue(predicate(
+            StubResponse(422, {}),
+            {
+                "message": "Load Balancer '12345' has a status of "
+                           "'PENDING_UPDATE' and is considered immutable.",
+                "code": 422
+            }))
         # This one is just malformed but similar to a good message.
         self.assertFalse(predicate(
             StubResponse(422, {}),
@@ -676,6 +682,11 @@ class StepAsEffectTests(SynchronousTestCase):
                 "message": "The load balancer is considered immutable.",
                 "code": 422
             }))
+
+    def test_remove_nodes_from_clb_413_retry(self):
+        """
+        :obj:`RemoveNodesFromCLB`, on receiving a 413 returns Step.RETRY
+        """
 
     def test_remove_nodes_from_clb_retry(self):
         """

@@ -113,6 +113,13 @@ def _parse_nova_user_error(api_error):
                 return m.groups()[0]
 
 
+def report_success(_):
+    """
+    Report succesful step completion
+    """
+    return Step.SUCCESS, []
+
+
 @implementer(IStep)
 @attributes([Attribute('server_config', instance_of=PMap)])
 class CreateServer(object):
@@ -309,6 +316,23 @@ def _check_clb_422(*regex_matches):
     return check_response
 
 
+def report_clb_failure(result):
+    """
+    If the error is a 422 - PENDING UPDATE, retry.  Otherwise, fail.
+    """
+    err_type, error, traceback = result
+    if err_type == APIError and error.code == 413:
+        # over-limit, retry
+        return StepResult.RETRY, [error]
+    if err_type == APIError and error.code == 422:
+        # body has already become JSON
+        message = error.body.get("message", None)
+        if message and _CLB_PENDING_UPDATE_PATTERN.search(message):
+            return StepResult.RETRY, [error]
+
+    return StepResult.FAILURE, [error]
+
+
 @implementer(IStep)
 @attributes([Attribute('lb_id', instance_of=basestring),
              Attribute('address_configs', instance_of=PSet)])
@@ -353,23 +377,7 @@ class AddNodesToCLB(object):
         def report_success(result):
             return StepResult.SUCCESS, []
 
-        def report_failure(result):
-            """
-            If the error is a 422 - PENDING UPDATE, retry.  Otherwise, fail.
-            """
-            err_type, error, traceback = result
-            if err_type == APIError and error.code == 413:
-                # over-limit, retry
-                return StepResult.RETRY, [error]
-            if err_type == APIError and error.code == 422:
-                # body has already become JSON
-                message = error.body.get("message", None)
-                if message and _CLB_PENDING_UPDATE_PATTERN.search(message):
-                    return StepResult.RETRY, [error]
-
-            return StepResult.FAILURE, [error]
-
-        return eff.on(success=report_success, error=report_failure)
+        return eff.on(success=report_success, error=report_clb_failure)
 
 
 @implementer(IStep)
@@ -392,6 +400,7 @@ class RemoveNodesFromCLB(object):
     state, or already deleted, which means we don't have to remove any nodes.
     """
 
+    @report_success
     def as_effect(self):
         """Produce a :obj:`Effect` to remove a load balancer node."""
         eff = service_request(
@@ -401,12 +410,13 @@ class RemoveNodesFromCLB(object):
             params={'id': [str(node_id) for node_id in self.node_ids]},
             success_pred=predicate_any(
                 has_code(202, 413, 400),
-                _check_clb_422(_CLB_PENDING_UPDATE_PATTERN,
-                               _CLB_DELETED_PATTERN)))
+                _check_clb_422(_CLB_DELETED_PATTERN)))
         # 400 means that there are some nodes that are no longer on the
         # load balancer.  Parse them out and try again.
-        return eff.on(partial(
+        eff = eff.on(partial(
             _clb_check_bulk_delete, self.lb_id, self.node_ids))
+
+        return eff.on(success=report_success, error=report_clb_failure)
 
 
 def _clb_check_bulk_delete(lb_id, attempted_nodes, result):
