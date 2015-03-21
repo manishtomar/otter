@@ -1506,11 +1506,11 @@ class CassScalingGroupCollection:
             [Effect(
                 CQLQueryExecute(query=query.format(cf=self.webhooks_table),
                                 params={},
-                                consistency_level=ConsistencyLevel.ONE)),
+                                consistency_level=ConsistencyLevel.ALL)),
              Effect(
                 CQLQueryExecute(query=query.format(cf=self.webhook_keys_table),
                                 params={},
-                                consistency_level=ConsistencyLevel.ONE))])
+                                consistency_level=ConsistencyLevel.ALL))])
         return eff.on(
             lambda (whooks, wkeys): set(freeze(whooks)) - set(freeze(wkeys)))
 
