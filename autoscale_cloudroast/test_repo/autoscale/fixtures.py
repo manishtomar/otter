@@ -228,11 +228,20 @@ class AutoscaleFixture(BaseTestFixture):
 
     def empty_scaling_group(self, group, delete=True):
         """
-        Given the group, updates the group to be of 0 minentities and maxentities.
-        If delete is set to True, the scaling group is deleted.
+        Given the group, updates the group to be of 0 minentities
+        and maxentities. If delete is set to True, the scaling group
+        is deleted.
         """
+        if delete:
+            self.resources.add(
+                group.id,
+                partial(self.autoscale_client.delete_scaling_group,
+                        force='true'))
+            return
+
         servers_on_group = (
-            self.autoscale_client.list_status_entities_sgroups(group.id)).entity
+            self.autoscale_client.list_status_entities_sgroups(
+                group.id)).entity
         if servers_on_group.desiredCapacity is not 0:
             self.autoscale_client.update_group_config(
                 group_id=group.id,
@@ -241,9 +250,6 @@ class AutoscaleFixture(BaseTestFixture):
                 min_entities=0,
                 max_entities=0,
                 metadata={})
-        if delete:
-            self.resources.add(group.id,
-                               self.autoscale_client.delete_scaling_group)
 
     def verify_group_state(self, group_id, desired_capacity):
         """
