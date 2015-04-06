@@ -185,11 +185,47 @@ def webhook_migrate(reactor, args):
         lambda _: conn.disconnect())
 
 
+def migrate_status(reactor, args):
+    """
+    Change all DISABLED groups to ERROR and None groups to ACTIVE
+    """
+    groups = yield Effect(
+        CQLQueryExecute(
+            query='SELECT status FROM scaling_group;', params={},
+            consistency_level=ConsistencyLevel.ONE))
+    set_status_q = (
+        'UPDATE scaling_group SET status=\'{status}\' '
+        'WHERE "tenantId"=:{i}tenantId AND "groupId"=:{i}groupId;')
+    queries, params = [], {}
+    for i, group in enumerate(groups):
+        if group['status'] is None:
+            queries.append(set_status_q.format(status='ACTIVE', i=i))
+            params['{}tenantId'.format(i)] = group['tenantId']
+            params['{}groupId'.format(i)] = group['groupId']
+        elif group['status'] == 'DISABLED':
+            queries.append(set_status_q.format(status='ERROR', i=i))
+            params['{}tenantId'.format(i)] = group['tenantId']
+            params['{}groupId'.format(i)] = group['groupId']
+    yield Effect(
+        CQLQueryExecute(
+            query=batch(queries), params=params,
+            consistency_level=ConsistencyLevel.ONE))
+    do_return(None)
+
+
+def perform_cql_effect(reactor, conn, eff):
+    d = perform(get_cql_dispatcher(reactor, conn), eff)
+    return d.addCallback(lambda _: conn.disconnect())
+
+
 def run(args):
-    if args.webhook_migrate:
-        task.react(webhook_migrate, (args,))
-    elif args.webhook_index_only:
-        task.react(webhook_index, (args,))
+    cqlargs = ['webhook_migrate', 'webhook_index_only', 'migrate_status']
+    for cqlarg in cqlargs:
+        argval = getattr(args, cqlarg, None)
+        if argval:
+            eff = globals()[cqlarg]()
+            conn = setup_connection(reactor, args)
+            task.react(perform_cql_effect, (conn, eff))
     else:
         generate(args)
 
