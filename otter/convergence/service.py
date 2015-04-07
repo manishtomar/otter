@@ -30,8 +30,9 @@ from otter.convergence.effecting import steps_to_effect
 from otter.convergence.gathering import get_all_convergence_data
 from otter.convergence.model import ServerState, StepResult
 from otter.convergence.planning import plan
-from otter.models.intents import GetScalingGroupInfo, ModifyGroupState
-from otter.models.interface import NoSuchScalingGroupError
+from otter.models.intents import (
+    DeleteGroup, GetScalingGroupInfo, ModifyGroupState)
+from otter.models.interface import NoSuchScalingGroupError, ScalingGroupStatus
 from otter.util.fp import assoc_obj
 from otter.util.zk import CreateOrSet, DeleteNode, GetChildren, GetStat
 
@@ -96,7 +97,7 @@ def execute_convergence(tenant_id, group_id, log,
     :param get_all_convergence_data: like :func`get_all_convergence_data`, used
         for testing.
 
-    :return: An Effect of a list containing the individual step results.
+    :return: Effect of most severe StepResult
     :raise: :obj:`NoSuchScalingGroupError` if the group doesn't exist.
     """
     # Huh! It turns out we can parallelize the gathering of data with the
@@ -113,6 +114,10 @@ def execute_convergence(tenant_id, group_id, log,
     group_state = manifest['state']
     launch_config = manifest['launchConfiguration']
     now = yield Effect(Func(time.time))
+
+    group_status = ScalingGroupStatus.lookupByName(manifest['status'])
+    if group_status == ScalingGroupStatus.DELETING:
+        group_state.desired = 0
 
     desired_group_state = get_desired_group_state(
         group_id, launch_config, group_state.desired)
@@ -133,6 +138,11 @@ def execute_convergence(tenant_id, group_id, log,
     log.msg('execute-convergence-results',
             results=zip(steps, results),
             worst_status=worst_status)
+
+    if (worst_status == StepResult.SUCCESS and
+            group_status == ScalingGroupStatus.DELETING):
+            # servers have been deleted. Delete the group for real
+        yield Effect(DeleteGroup(tenant_id=tenant_id, group_id=group_id))
 
     yield do_return(worst_status)
 
