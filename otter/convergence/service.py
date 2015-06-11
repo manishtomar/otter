@@ -120,6 +120,7 @@ def execute_convergence(tenant_id, group_id, build_timeout,
     except FirstError as fe:
         six.reraise(*fe.exc_info)
     [(scaling_group, manifest), (servers, lb_nodes)] = data
+    yield msg("got all data")
 
     group_state = manifest['state']
     launch_config = manifest['launchConfiguration']
@@ -128,8 +129,10 @@ def execute_convergence(tenant_id, group_id, build_timeout,
                         else group_state.desired)
     desired_group_state = get_desired_group_state(
         group_id, launch_config, desired_capacity)
+    yield msg("got desired group state")
     steps = plan(desired_group_state, servers, lb_nodes,
                  datetime_to_epoch(now_dt), build_timeout)
+    yield msg("got plan")
     active = determine_active(servers, lb_nodes)
     yield msg('execute-convergence',
               servers=servers, lb_nodes=lb_nodes, steps=steps, now=now_dt,

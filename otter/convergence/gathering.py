@@ -25,6 +25,7 @@ from otter.convergence.model import (
     RCv3Node,
     group_id_from_metadata)
 from otter.indexer import atom
+from otter.log.intents import msg
 from otter.models.cass import CassScalingGroupServersCache
 from otter.util.http import append_segments
 from otter.util.retry import (
@@ -161,6 +162,7 @@ def get_scaling_group_servers(tenant_id, group_id, now,
     if last_update is None:
         servers = (yield all_as_servers()).get(group_id, [])
         yield cache.insert_servers(now, servers, True)
+        yield msg('inserted servers', servers=servers)
     elif now - last_update >= timedelta(days=30):
         last_update = now - timedelta(days=30)
         changes = (yield all_as_servers(last_update)).get(group_id, [])
@@ -171,6 +173,8 @@ def get_scaling_group_servers(tenant_id, group_id, now,
         changes = yield all_servers(last_update)
         servers = merge_servers(cached_servers, changes)
         servers = list(filter(partial(server_of_group, group_id), servers))
+        yield msg('group servers', servers=servers)
+    yield msg('returning servers', servers=servers)
     yield do_return(servers)
 
 
