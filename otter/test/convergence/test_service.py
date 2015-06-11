@@ -561,7 +561,8 @@ class ExecuteConvergenceTests(SynchronousTestCase):
                        flavor_id='flavor',
                        servicenet_address='10.0.0.1',
                        desired_lbs=self.desired_lbs,
-                       links=freeze([{'href': 'link1', 'rel': 'self'}])),
+                       links=freeze([{'href': 'link1', 'rel': 'self'}]),
+                       json=freeze({'id': 'a'})),
             NovaServer(id='b',
                        state=ServerState.ACTIVE,
                        created=0,
@@ -569,7 +570,8 @@ class ExecuteConvergenceTests(SynchronousTestCase):
                        flavor_id='flavor',
                        servicenet_address='10.0.0.2',
                        desired_lbs=self.desired_lbs,
-                       links=freeze([{'href': 'link2', 'rel': 'self'}]))
+                       links=freeze([{'href': 'link2', 'rel': 'self'}]),
+                       json=freeze({'id': 'b'})),
         )
         gsgi = GetScalingGroupInfo(tenant_id='tenant-id',
                                    group_id='group-id')
@@ -639,7 +641,8 @@ class ExecuteConvergenceTests(SynchronousTestCase):
                              flavor_id='flavor',
                              servicenet_address='10.0.0.3',
                              desired_lbs=self.desired_lbs,
-                             links=freeze([{'href': 'link3', 'rel': 'self'}]))
+                             links=freeze([{'href': 'link3', 'rel': 'self'}]),
+                             json=freeze({'id': 'c'})),
         servers = self.servers + (deleted,)
         steps = [
             TestStep(
@@ -671,8 +674,9 @@ class ExecuteConvergenceTests(SynchronousTestCase):
             (Log('execute-convergence-results',
                  {'results': [(steps[0], (StepResult.SUCCESS, []))],
                   'worst_status': StepResult.SUCCESS}), noop),
-            # Note that self.servers is non-deleted servers
-            (("cacheistenant-idgroup-id", self.now, self.servers, True), noop)
+            # Note that servers arg is non-deleted servers
+            (("cacheistenant-idgroup-id", self.now,
+              [{'id': 'a'}, {'id': 'b'}], True), noop)
         ])
         dispatcher = ComposedDispatcher([sequence, self._get_dispatcher()])
         with sequence.consume():
