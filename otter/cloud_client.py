@@ -23,6 +23,7 @@ from txeffect import deferred_performer, perform as twisted_perform
 
 from otter.auth import Authenticate, InvalidateToken, public_endpoint_url
 from otter.constants import ServiceType
+from otter.log.intents import msg
 from otter.util.config import config_value
 from otter.util.http import APIError, append_segments, try_json_with_keys
 from otter.util.http import headers as otter_headers
@@ -202,13 +203,15 @@ def concretize_service_request(
             params=service_request.params,
             log=log)
 
-    eff = auth_eff.on(got_auth)
-    bracket = throttler(service_request.service_type,
-                        service_request.method.lower())
-    if bracket is not None:
-        return Effect(_Throttle(bracket=bracket, effect=eff))
-    else:
-        return eff
+    log_eff = msg('Service request {method} {url}', method=service_request.method,
+                  url=service_request.url)
+    return log_eff.on(lambda _: auth_eff).on(got_auth)
+    #bracket = throttler(service_request.service_type,
+    #                    service_request.method.lower())
+    #if bracket is not None:
+    #    return Effect(_Throttle(bracket=bracket, effect=eff))
+    #else:
+    #    return eff
 
 
 @attributes(['bracket', 'effect'])
