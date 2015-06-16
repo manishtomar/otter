@@ -604,9 +604,9 @@ class ConvergenceTestsNoLBs(unittest.TestCase):
         return self.identity.authenticate_user(
             self.rcs,
             resources={
-                "otter": (otter_key, otter_url),
+                "otter": ("otter_key", otter_url),
                 "nova": (nova_key,),
-                "mimic_nova": (mimic_nova_key,)
+                #"mimic_nova": (mimic_nova_key,)
             },
             region=region
         )
@@ -1178,11 +1178,11 @@ class ConvergenceTestsWith1CLB(unittest.TestCase):
         return self.identity.authenticate_user(
             self.rcs,
             resources={
-                "otter": (otter_key, otter_url),
+                "otter": ("otter_key", otter_url),
                 "nova": (nova_key,),
                 "loadbalancers": (clb_key,),
-                "mimic_nova": (mimic_nova_key,),
-                "mimic_clb": (mimic_clb_key,)
+                #"mimic_nova": (mimic_nova_key,),
+                #"mimic_clb": (mimic_clb_key,)
             },
             region=region
         ).addCallback(lambda _: gatherResults([
