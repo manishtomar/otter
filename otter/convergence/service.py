@@ -24,6 +24,7 @@ from pyrsistent import thaw
 import six
 
 from twisted.application.service import MultiService
+from twisted.python.failure import Failure
 
 from txeffect import exc_info_to_failure, perform
 
@@ -125,6 +126,37 @@ def _execute_steps(steps):
     yield do_return((worst_status, reasons))
 
 
+def get_all_data(tenant_id, group_id, now,
+                 get_all_convergence_data=get_all_convergence_data):
+    # Huh! It turns out we can parallelize the gathering of data with the
+    # fetching of the scaling group info from cassandra.
+    sg_eff = Effect(GetScalingGroupInfo(tenant_id=tenant_id,
+                                        group_id=group_id))
+    gather_eff = get_all_convergence_data(tenant_id, group_id, now)
+    yield msg("gather-beg")
+    try:
+        data = yield parallel([sg_eff, gather_eff])
+    except FirstError as fe:
+        yield err(Failure(fe), "gather-fail")
+        six.reraise(*fe.exc_info)
+    [(scaling_group, manifest), (servers, lb_nodes)] = data
+
+    group_state = manifest['state']
+    launch_config = manifest['launchConfiguration']
+
+    # update active cache for non-deleting groups
+    if group_state.status != ScalingGroupStatus.DELETING:
+        active = determine_active(servers, lb_nodes)
+        yield _update_active(scaling_group, active)
+
+    desired_capacity = (0 if group_state.status == ScalingGroupStatus.DELETING
+                        else group_state.desired)
+    desired_group_state = get_desired_group_state(group_id, launch_config,
+                                                  desired_capacity)
+    yield do_return((scaling_group, group_state, desired_group_state,
+                     servers, lb_nodes))
+
+
 @do
 def execute_convergence(tenant_id, group_id, build_timeout,
                         get_all_convergence_data=get_all_convergence_data,
@@ -144,62 +176,59 @@ def execute_convergence(tenant_id, group_id, build_timeout,
     :return: Effect of most severe StepResult
     :raise: :obj:`NoSuchScalingGroupError` if the group doesn't exist.
     """
-    # Huh! It turns out we can parallelize the gathering of data with the
-    # fetching of the scaling group info from cassandra.
-    sg_eff = Effect(GetScalingGroupInfo(tenant_id=tenant_id,
-                                        group_id=group_id))
+    # Gather data
     now_dt = yield Effect(Func(datetime.utcnow))
-    gather_eff = get_all_convergence_data(tenant_id, group_id, now_dt)
-    try:
-        data = yield parallel([sg_eff, gather_eff])
-    except FirstError as fe:
-        six.reraise(*fe.exc_info)
-    [(scaling_group, manifest), (servers, lb_nodes)] = data
+    (scaling_group, group_state, desired_group_state,
+     servers, lb_nodes) = yield get_all_data(tenant_id, group_id, now_dt)
 
-    group_state = manifest['state']
-    launch_config = manifest['launchConfiguration']
-
-    desired_capacity = (0 if group_state.status == ScalingGroupStatus.DELETING
-                        else group_state.desired)
-    desired_group_state = get_desired_group_state(
-        group_id, launch_config, desired_capacity)
+    # Prepare plan
     steps = plan(desired_group_state, servers, lb_nodes,
                  datetime_to_epoch(now_dt), build_timeout)
-    active = determine_active(servers, lb_nodes)
     yield msg('execute-convergence',
               servers=servers, lb_nodes=lb_nodes, steps=steps, now=now_dt,
-              desired=desired_group_state, active=active)
-    # Since deleting groups are not publicly visible
-    if group_state.status != ScalingGroupStatus.DELETING:
-        yield _update_active(scaling_group, active)
+              desired=desired_group_state)
 
+    # Execute the plan/steps
     worst_status, reasons = yield _execute_steps(steps)
 
-    cache = cache_class(tenant_id, group_id)
+    # Handle the status from execution
     if worst_status == StepResult.SUCCESS:
-        if group_state.status == ScalingGroupStatus.DELETING:
-            # servers have been deleted. Delete the group for real
-            yield Effect(DeleteGroup(tenant_id=tenant_id, group_id=group_id))
-        elif group_state.status == ScalingGroupStatus.ERROR:
-            yield Effect(UpdateGroupStatus(scaling_group=scaling_group,
-                                           status=ScalingGroupStatus.ACTIVE))
-            yield cf_msg('group-status-active',
-                         status=ScalingGroupStatus.ACTIVE.name)
-        else:
-            # Clear servers cache and update it with latest servers
-            yield cache.insert_servers(
-                now_dt,
-                [thaw(s.json) for s in servers
-                 if s.state != ServerState.DELETED],
-                True)
+        yield convergence_succeeded(scaling_group, group_state, servers,
+                                    now_dt, cache_class)
     elif worst_status == StepResult.FAILURE:
-        yield Effect(UpdateGroupStatus(scaling_group=scaling_group,
-                                       status=ScalingGroupStatus.ERROR))
-        yield cf_err(
-            'group-status-error', status=ScalingGroupStatus.ERROR.name,
-            reasons='; '.join(sorted(present_reasons(reasons))))
+        yield convergence_failed(scaling_group, reasons)
 
     yield do_return(worst_status)
+
+
+@do
+def convergence_succeeded(scaling_group, group_state, servers, now_dt,
+                          cache_class=CassScalingGroupServersCache):
+    if group_state.status == ScalingGroupStatus.DELETING:
+        # servers have been deleted. Delete the group for real
+        yield Effect(DeleteGroup(tenant_id=scaling_group.tenant_id,
+                                 group_id=scaling_group.uuid))
+    elif group_state.status == ScalingGroupStatus.ERROR:
+        yield Effect(UpdateGroupStatus(scaling_group=scaling_group,
+                                       status=ScalingGroupStatus.ACTIVE))
+        yield cf_msg('group-status-active',
+                     status=ScalingGroupStatus.ACTIVE.name)
+    else:
+        # Active group, Update servers cache
+        cache = cache_class(scaling_group.tenant_id, scaling_group.uuid)
+        yield cache.insert_servers(
+            now_dt,
+            [thaw(s.json) for s in servers if s.state != ServerState.DELETED],
+            True)
+
+
+@do
+def convergence_failed(scaling_group, reasons):
+    yield Effect(UpdateGroupStatus(scaling_group=scaling_group,
+                                   status=ScalingGroupStatus.ERROR))
+    yield cf_err(
+        'group-status-error', status=ScalingGroupStatus.ERROR.name,
+        reasons='; '.join(sorted(present_reasons(reasons))))
 
 
 def format_dirty_flag(tenant_id, group_id):
