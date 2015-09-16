@@ -23,7 +23,6 @@ from otter.log import log
 from otter.log.bound import bound_log_kwargs
 from otter.models.cass import CassScalingGroupServersCache
 from otter.models.interface import ScalingGroupStatus
-from otter.rest.bobby import get_bobby
 from otter.rest.configs import (
     OtterConfig,
     OtterLaunch,
@@ -423,14 +422,6 @@ class OtterGroups(object):
             return d.addCallback(lambda _: result)
 
         deferred.addCallback(_do_obey_config_change)
-
-        def _add_to_bobby(result, client):
-            d = client.create_group(self.tenant_id, result['id'])
-            return d.addCallback(lambda _: result)
-
-        bobby = get_bobby()
-        if bobby is not None:
-            deferred.addCallback(_add_to_bobby, bobby)
 
         def _format_output(result):
             uuid = result['id']

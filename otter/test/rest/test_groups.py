@@ -19,7 +19,6 @@ from twisted.trial.unittest import SynchronousTestCase
 from twisted.web.http import Request
 from twisted.web.test.requesthelper import DummyChannel
 
-from otter.bobby import BobbyClient
 from otter.json_schema import rest_schemas, validate
 from otter.json_schema.group_examples import (
     config as config_examples,
@@ -34,7 +33,6 @@ from otter.models.interface import (
     ScalingGroupStatus,
 )
 from otter.rest import groups
-from otter.rest.bobby import set_bobby
 from otter.rest.decorators import InvalidJsonError, InvalidQueryArgument
 from otter.rest.groups import extract_bool_arg, format_state_dict
 from otter.supervisor import (
@@ -790,85 +788,6 @@ class AllGroupsEndpointTestCase(RestAPITestMixin, SynchronousTestCase):
 
         self.mock_store.create_scaling_group.assert_called_once_with(
             mock.ANY, mock.ANY, mock.ANY, expected_launch, None)
-
-
-class AllGroupsBobbyEndpointTestCase(RestAPITestMixin, SynchronousTestCase):
-    """
-    Tests for ``/{tenantId}/groups/`` endpoints (create, list) with Bobby
-
-    This will go away, just here so that we've got the start for optional
-    Bobby support in Otter.
-    """
-    endpoint = "/v1.0/11111/groups/"
-    invalid_methods = ("DELETE", "PUT")
-
-    def setUp(self):
-        """
-        Set up mock Bobby client
-        """
-        set_bobby(BobbyClient("http://127.0.0.1:9876/"))
-
-        super(AllGroupsBobbyEndpointTestCase, self).setUp()
-        self.mock_controller = patch(self, 'otter.rest.groups.controller')
-        set_config_data({'url_root': ''})
-        self.addCleanup(set_config_data, {})
-        setup_mod_and_trigger(self)
-
-        # Patch supervisor
-        supervisor = mock.Mock(spec=['validate_launch_config'])
-        supervisor.validate_launch_config.return_value = defer.succeed(None)
-        set_supervisor(supervisor)
-
-    def tearDown(self):
-        """
-        Revert mock Bobby client
-        """
-        set_bobby(None)
-        set_supervisor(None)
-
-    @mock.patch('otter.util.http.get_url_root', return_value="")
-    @mock.patch('otter.bobby.BobbyClient.create_group',
-                return_value=defer.succeed(''))
-    def test_group_create_bobby(self, create_group, get_url_root):
-        """
-        A scaling group is created and calls over to Bobby
-        """
-        request_body = {
-            'groupConfiguration': {
-                "name": "group",
-                "minEntities": 1,
-                "maxEntities": 10,
-                "cooldown": 10,
-                "metadata": {}
-            },
-            'launchConfiguration': launch_examples()[0]
-        }
-
-        config = request_body['groupConfiguration']
-        launch = request_body['launchConfiguration']
-        policies = request_body.get('scalingPolicies', [])
-
-        expected_config = config.copy()
-
-        rval = {
-            'groupConfiguration': expected_config,
-            'launchConfiguration': launch,
-            'scalingPolicies': policies,
-            'id': '1',
-            'state': GroupState('11111', '1', '', {}, {}, None, {}, False,
-                                ScalingGroupStatus.ACTIVE)
-        }
-
-        self.mock_store.create_scaling_group.return_value = defer.succeed(rval)
-
-        self.assert_status_code(
-            201, None, 'POST', json.dumps(request_body),
-            '/v1.0/11111/groups/1/')
-
-        self.mock_store.create_scaling_group.assert_called_once_with(
-            mock.ANY, '11111', expected_config, launch, policies or None)
-
-        create_group.assert_called_once_with('11111', '1')
 
 
 class OneGroupTestCase(RestAPITestMixin, SynchronousTestCase):
