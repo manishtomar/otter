@@ -148,29 +148,37 @@ def get_clb_contents():
     # DRAINING with draining time of 0; we should just say that the node is
     # gone).
 
-    def gone(r):
-        return catch(CLBNotFoundError, lambda exc: r)
+    def gone(excp, r):
+        return catch(excp, lambda exc: r)
+
     lb_ids = [lb['id'] for lb in (yield _retry(get_clbs()))]
-    node_reqs = [_retry(get_clb_nodes(lb_id).on(error=gone([])))
+    node_reqs = [_retry(get_clb_nodes(lb_id).on(error=gone(CLBNotFoundError, [])))
                  for lb_id in lb_ids]
     all_nodes = yield parallel(node_reqs)
     lb_nodes = {lb_id: [CLBNode.from_node_json(lb_id, node) for node in nodes]
                 for lb_id, nodes in zip(lb_ids, all_nodes)}
     draining = [n for n in concat(lb_nodes.values())
                 if n.description.condition == CLBNodeCondition.DRAINING]
+
+    LB_DELETED, NODE_DELETED = object(), object()
+
+    def get_feed(lbid, nodeid):
+        return get_clb_node_feed(lbid, nodeid).on(
+            error=gone(CLBNotFoundError, LB_DELETED)).on(
+                error=gone(NoSuchCLBNodeError, NODE_DELETED))
+
     feeds = yield parallel(
-        [_retry(get_clb_node_feed(n.description.lb_id, n.node_id).on(
-            error=gone(None)))
+        [_retry(get_feed(n.description.lb_id, n.node_id))
          for n in draining]
     )
     nodes_to_feeds = dict(zip(draining, feeds))
-    deleted_lbs = set([
+    deleted_lbs = set(
         node.description.lb_id
-        for (node, feed) in nodes_to_feeds.items() if feed is None])
+        for (node, feed) in nodes_to_feeds.items() if feed is LB_DELETED)
 
     def update_drained_at(node):
         feed = nodes_to_feeds.get(node)
-        if node.description.lb_id in deleted_lbs:
+        if node.description.lb_id in deleted_lbs or feed is NODE_DELETED:
             return None
         if feed is not None:
             return assoc_obj(node, drained_at=extract_CLB_drained_at(feed))
