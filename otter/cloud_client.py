@@ -784,6 +784,7 @@ _NOVA_403_RACKCONNECT_NETWORK_REQUIRED = _forbidden_plaintext(
 _NOVA_403_QUOTA = _regex(
     "Quota exceeded for (\S+): Requested \d+, but already used \d+ of \d+ "
     "(\S+)")
+_NOVA_403_IMAGE = _regex("Not allowed to boot from requested image")
 
 
 @attributes([Attribute('server_id', instance_of=six.text_type)])
@@ -930,7 +931,9 @@ def create_server(server_args):
             (400, ('badRequest', 'message'), None,
              CreateServerConfigurationError),
             (403, ('forbidden', 'message'), _NOVA_403_QUOTA,
-             CreateServerOverQuoteError)
+             CreateServerOverQuoteError),
+            (403, ('forbidden', 'message'), _NOVA_403_IMAGE,
+             CreateServerImageBootError)
         ]
         _match_errors(_nova_standard_errors + other_errors, code, json_body)
 
