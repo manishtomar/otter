@@ -152,9 +152,10 @@ def wait_for_active(log,
         deferred_description=timeout_description)
 
 
-# limit on 1 servers to be created simultaneously
-MAX_CREATE_SERVER = 1
-create_server_sem = DeferredSemaphore(MAX_CREATE_SERVER)
+# limit on number of servers to be created simultaneously
+limit = config_value("worker.parallel_create_servers")
+# default to 1 if not provided
+create_server_sem = DeferredSemaphore(1 if limit is None else limit)
 
 
 class ServerCreationRetryError(Exception):
