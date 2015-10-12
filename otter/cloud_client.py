@@ -685,6 +685,40 @@ def get_clb_nodes(lb_id):
         success=lambda (response, body): body['nodes'])
 
 
+@attr.s
+class NodesFeedItem(object):
+    updated = attr.ib()
+    node_id = attr.ib()
+    summary = attr.ib()
+
+
+@curry
+def raise_no_clb_error(lb_id, api_err_exc_info):
+    excp = api_err_exc_info[1]
+    if excp.code == 404:
+        raise NoSuchCLBError(lb_id)
+
+
+def parse_nodes_feeds(feed):
+    pass
+
+
+def get_clb_nodes_feed(lb_id):
+    """
+    Fetch the atom feed of nodes of the given load balancer.
+    Returns list of :obj:`NodesFeedItem`
+    """
+    return service_request(
+        ServiceType.CLOUD_LOAD_BALANCERS,
+        'GET',
+        append_segments('loadbalancers', str(lb_id), 'nodes.atom'),
+        json_response=False
+    ).on(
+        error=catch(APIError, raise_no_clb_error(lb_id))
+    ).on(
+        success=lambda (response, body): parse_nodes_feeds(body))
+
+
 def get_clbs():
     """Fetch all LBs for a tenant. Returns list of loadbalancer JSON."""
     return service_request(
@@ -706,8 +740,6 @@ def get_clb_node_feed(lb_id, node_id):
     ).on(
         error=_only_json_api_errors(
             lambda c, b: _process_clb_api_error(c, b, lb_id))
-    ).on(
-        log_success_response('request-get-clb-node-feed', identity)
     ).on(
         success=lambda (response, body): body)
 
