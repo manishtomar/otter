@@ -19,7 +19,7 @@ from effect import (
 import six
 
 from toolz.dicttoolz import get_in
-from toolz.functoolz import identity
+from toolz.functoolz import curry, identity
 from toolz.itertoolz import concat
 
 from twisted.internet.defer import DeferredLock
@@ -29,6 +29,7 @@ from txeffect import deferred_performer, perform as twisted_perform
 
 from otter.auth import Authenticate, InvalidateToken, public_endpoint_url
 from otter.constants import ServiceType
+from otter.indexer import atom
 from otter.log.intents import msg as msg_effect
 from otter.util.config import config_value
 from otter.util.http import APIError, append_segments, try_json_with_keys
@@ -43,6 +44,7 @@ from otter.util.pure_http import (
     has_code,
     request,
 )
+from otter.util.timestamp import timestamp_to_epoch
 
 
 def add_bind_service(catalog, service_name, region, log, request_func):
@@ -696,11 +698,34 @@ class NodesFeedItem(object):
 def raise_no_clb_error(lb_id, api_err_exc_info):
     excp = api_err_exc_info[1]
     if excp.code == 404:
-        raise NoSuchCLBError(lb_id)
+        raise NoSuchCLBError(lb_id=six.text_type(lb_id))
+    six.reraise(*api_err_exc_info)
+
+
+_NODE_URL_PATTERN = re.compile("^.*nodes/(\d+)$")
+
+
+def extract_node_id(node_url):
+    m = _NODE_URL_PATTERN.match(node_url)
+    return m.groups(1)[0]
 
 
 def parse_nodes_feeds(feed):
-    pass
+    """
+    Parse nodes feed into list of :obj:`NodesFeedItem`
+
+    :param str feed: Atom feed of nodes
+    :return: ``list`` of :obj:`NodesFeedItem`
+    """
+    root = atom.parse(feed)
+    items = []
+    for entry in atom.entries(root):
+        node_url = atom.xpath('./atom:link', entry)[0].attrib['href']
+        items.append(
+            NodesFeedItem(timestamp_to_epoch(atom.updated(entry)),
+                          extract_node_id(node_url),
+                          atom.summary(entry)))
+    return items
 
 
 def get_clb_nodes_feed(lb_id):

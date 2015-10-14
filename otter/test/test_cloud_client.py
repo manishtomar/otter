@@ -35,6 +35,7 @@ from otter.cloud_client import (
     CLBRateLimitError,
     CreateServerConfigurationError,
     CreateServerOverQuoteError,
+    NodesFeedItem,
     NoSuchCLBError,
     NoSuchCLBNodeError,
     NoSuchServerError,
@@ -54,6 +55,7 @@ from otter.cloud_client import (
     create_server,
     get_clb_node_feed,
     get_clb_nodes,
+    get_clb_nodes_feed,
     get_clbs,
     get_cloud_client_dispatcher,
     get_server_details,
@@ -68,6 +70,7 @@ from otter.constants import ServiceType
 from otter.log.intents import Log
 from otter.test.utils import (
     StubResponse,
+    const,
     nested_sequence,
     raise_,
     resolve_effect,
@@ -78,6 +81,7 @@ from otter.test.worker.test_launch_server_v1 import fake_service_catalog
 from otter.util.config import set_config_data
 from otter.util.http import APIError, headers
 from otter.util.pure_http import Request, has_code
+from otter.util.timestamp import timestamp_to_epoch
 
 
 def make_service_configs():
@@ -562,6 +566,40 @@ class PerformTenantScopeTests(SynchronousTestCase):
              self.throttler, 1, ereq.intent))
 
 
+nodes_feed = '''<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <link rel="next" href="https://dfw.loadbalancers.api.rackspacecloud.com/v1.0/756004/loadbalancers/493411/nodes.atom?page=2"/>
+  <title type="text">Nodes Feed</title>
+  <id>756004-loadbalancers-493411-nodes</id>
+  <author>
+    <name>Rackspace Cloud</name>
+  </author>
+  <entry>
+    <title type="text">Node Successfully Updated</title>
+    <summary type="text">Node successfully updated with address: '10.181.30.33', port: '80', weight: '1', condition: 'DRAINING'</summary>
+    <author>
+      <name>radix192;q=1.0</name>
+    </author>
+    <link href="https://dfw.loadbalancers.api.rackspacecloud.com/v1.0/756004/loadbalancers/493411/nodes/1007563"/>
+    <id>756004-loadbalancers-493411-nodes-1007563-2015280343480</id>
+    <category term="UPDATE"/>
+    <updated>2015-10-07T03:43:48.000Z</updated>
+  </entry>
+  <entry>
+    <title type="text">Node Successfully Created</title>
+    <summary type="text">Node successfully created with address: '10.181.30.33', port: '82', condition: 'ENABLED', weight: '1'</summary>
+    <author>
+      <name>radix192;q=1.0</name>
+    </author>
+    <link href="https://dfw.loadbalancers.api.rackspacecloud.com/v1.0/756004/loadbalancers/493411/nodes/1007561"/>
+    <id>756004-loadbalancers-493411-nodes-1007561-20152781613440</id>
+    <category term="CREATE"/>
+    <updated>2015-10-05T16:13:44.000Z</updated>
+  </entry>
+ </feed>
+'''
+
+
 class CLBClientTests(SynchronousTestCase):
     """
     Tests for CLB client functions, such as :obj:`change_clb_node`.
@@ -892,6 +930,45 @@ class CLBClientTests(SynchronousTestCase):
             'GET', 'loadbalancers/123456/nodes')
         self.assert_parses_common_clb_errors(
             expected.intent, get_clb_nodes(self.lb_id))
+
+    def test_get_clb_nodes_feed(self):
+        """
+        :func:`get_clb_nodes_feed` makes request to get all feeds and returns
+        them as list of `NodesFeedItem`
+        """
+        seq = [
+            (service_request(
+                ServiceType.CLOUD_LOAD_BALANCERS, 'GET',
+                'loadbalancers/23/nodes.atom', json_response=False).intent,
+             const(stub_pure_response(nodes_feed, 200)))
+        ]
+        self.assertEqual(
+            perform_sequence(seq, get_clb_nodes_feed("23")),
+            [NodesFeedItem(timestamp_to_epoch("2015-10-07T03:43:48.000Z"),
+                           "1007563",
+                           ("Node successfully updated with address: "
+                            "'10.181.30.33', port: '80', weight: '1', "
+                            "condition: 'DRAINING'")),
+             NodesFeedItem(timestamp_to_epoch("2015-10-05T16:13:44.000Z"),
+                           "1007561",
+                           ("Node successfully created with address: "
+                            "'10.181.30.33', port: '82', condition: "
+                            "'ENABLED', weight: '1'"))])
+
+    def test_get_clb_nodes_feed_404(self):
+        """
+        :func:`get_clb_nodes_feed` makes request to get all feeds and raises
+        NoSuchCLBError if it returns 404
+        """
+        seq = [
+            (service_request(
+                ServiceType.CLOUD_LOAD_BALANCERS, 'GET',
+                'loadbalancers/23/nodes.atom', json_response=False).intent,
+             lambda i: raise_(APIError(404, "xml")))
+        ]
+        with self.assertRaises(NoSuchCLBError) as cm:
+            perform_sequence(seq, get_clb_nodes_feed("23"))
+        self.assertEqual(cm.exception.lb_id, six.text_type("23"))
 
     def test_get_clb_node_feed(self):
         """:func:`get_clb_node_feed` returns the Atom feed for a CLB node."""
