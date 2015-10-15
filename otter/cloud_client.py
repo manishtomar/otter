@@ -728,7 +728,7 @@ def parse_nodes_feeds(feed):
     return items
 
 
-def get_clb_nodes_feed(lb_id):
+def get_clb_nodes_feed_page(lb_id, params=None):
     """
     Fetch the atom feed of nodes of the given load balancer.
     Returns list of :obj:`NodesFeedItem`
@@ -737,6 +737,7 @@ def get_clb_nodes_feed(lb_id):
         ServiceType.CLOUD_LOAD_BALANCERS,
         'GET',
         append_segments('loadbalancers', str(lb_id), 'nodes.atom'),
+        params=params,
         json_response=False
     ).on(
         error=catch(APIError, raise_no_clb_error(lb_id))
