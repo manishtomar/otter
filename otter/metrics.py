@@ -41,6 +41,24 @@ from otter.models.intents import GetAllGroups, get_model_dispatcher
 from otter.util.fp import partition_bool
 
 
+def write_metrics_csv(gms):
+    print("writing groups csv")
+    import csv
+    with open("divergent.csv", "wb") as df, open("converged.csv", "wb") as cf:
+        dwriter = csv.writer(df)
+        dwriter.writerow(["tenantid", "groupid", "desired", "actual", "pending"])
+        cwriter = csv.writer(cf)
+        cwriter.writerow(["tenantid", "groupid", "desired", "actual", "pending"])
+        for gm in gms:
+            if gm.desired == gm.actual + gm.pending:
+                writer = cwriter
+            else:
+                writer = dwriter
+            writer.writerow(
+                [gm.tenant_id, gm.group_id, gm.desired, gm.actual,
+                    gm.pending])
+
+
 GroupMetrics = namedtuple('GroupMetrics',
                           'tenant_id group_id desired actual pending')
 
@@ -261,6 +279,7 @@ def collect_metrics(reactor, config, log, client=None, authenticator=None,
     if _print:
         group_metrics.sort(key=lambda g: abs(g.desired - g.actual),
                            reverse=True)
+        write_metrics_csv(group_metrics)
         print('groups sorted as per divergence', *group_metrics, sep='\n')
 
     # Disconnect only if we created the client
