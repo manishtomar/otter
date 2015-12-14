@@ -11,6 +11,8 @@ will trigger convergence on given group(s)
 will trigger convergence on all groups got from cassandra
 """
 
+from __future__ import print_function
+
 import json
 from argparse import ArgumentParser
 
@@ -163,9 +165,11 @@ def main(reactor):
     store = CassScalingGroupCollection(cass_client, reactor, 1000)
 
     groups = yield get_groups(parsed, store, conf)
-    yield trigger_convergence_groups(
-        authenticator, conf["region"], groups, parsed.limit,
-        parsed.no_error_group)
+    print(*set(g["tenantId"] for g in groups), sep="\n")
+
+    #yield trigger_convergence_groups(
+    #    authenticator, conf["region"], groups, parsed.limit,
+    #    parsed.no_error_group)
     yield cass_client.disconnect()
 
 
