@@ -278,6 +278,7 @@ def makeService(config):
                                              get_service_configs(config),
                                              kz_client, store, supervisor,
                                              cassandra_cluster)
+            # create partitioner
             # Setup scheduler service after starting
             scheduler = setup_scheduler(parent, dispatcher, store, kz_client)
             health_checker.checks['scheduler'] = scheduler.health_check

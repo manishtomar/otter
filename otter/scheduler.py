@@ -20,13 +20,13 @@ from otter.util.deferredutils import ignore_and_log
 from otter.util.hashkey import generate_transaction_id
 
 
-class SchedulerService(MultiService):
+class SchedulerService(MultiService, object):
     """
     Service to trigger scheduled events
     """
 
-    def __init__(self, dispatcher, batchsize, store, partitioner_factory,
-                 threshold=60):
+    def __init__(self, dispatcher, batchsize, store, partitioner,
+                 threshold=60, clock=None):
         """
         Initialize the scheduler service
 
@@ -40,16 +40,11 @@ class SchedulerService(MultiService):
         self.store = store
         self.threshold = threshold
         self.log = otter_log.bind(system='otter.scheduler')
-        self.partitioner = partitioner_factory(
-            self.log, partial(self._check_events, batchsize))
-        self.partitioner.setServiceParent(self)
+        self.partitioner = partitioner
         self.dispatcher = dispatcher
-
-    def reset(self, path):
-        """
-        Reset the scheduler with a new path.
-        """
-        return self.partitioner.reset_path(path)
+        ts = TimerService(interval, self._check_events, batchsize)
+        ts.clock = clock
+        ts.setServiceParent(self)
 
     def health_check(self):
         """
@@ -61,9 +56,12 @@ class SchedulerService(MultiService):
         info)
         """
         if not self.running:
-            return defer.succeed((False, {'reason': 'Not running'}))
+            return False, {'reason': 'Not running'}
 
-        def check_older_events(events, info):
+        if not self.partitioner.is_acquired():
+            return False, {"reason": "partitioner not acquired"}
+
+        def check_older_events(events):
             now = datetime.utcnow()
             old_events = []
             for event in events:
@@ -71,31 +69,25 @@ class SchedulerService(MultiService):
                     event['version'] = str(event['version'])
                     event['trigger'] = str(event['trigger'])
                     old_events.append(event)
-            info['old_events'] = old_events
-            return (not bool(old_events), info)
+            return (not bool(old_events), {"old_events": old_events})
 
-        def got_partitioner_health_check(result):
-            healthy, info = result
-            if healthy is False:
-                return result
-            buckets = info['buckets']
-            d = defer.gatherResults(
-                [self.store.get_oldest_event(bucket) for bucket in buckets],
-                consumeErrors=True)
-            d.addCallback(check_older_events, info)
-            return d
+        buckets = self.partitioner.get_current_buckets()
+        d = defer.gatherResults(
+            [self.store.get_oldest_event(bucket) for bucket in buckets],
+            consumeErrors=True)
+        return d.addCallback(check_older_events)
 
-        d = self.partitioner.health_check()
-        return d.addCallback(got_partitioner_health_check)
-
-    def _check_events(self, batchsize, buckets):
+    def _check_events(self, batchsize):
         """
         Check for events occurring now and earlier
         """
+        if not self.partitioner.is_acquired():
+            return
+
         utcnow = datetime.utcnow()
         log = self.log.bind(scheduler_run_id=generate_transaction_id(),
                             utcnow=utcnow)
-
+        buckets = self.partitioner.get_current_buckets()
         return defer.gatherResults(
             [check_events_in_bucket(
                 log, self.dispatcher, self.store, bucket, utcnow, batchsize)

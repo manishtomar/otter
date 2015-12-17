@@ -728,7 +728,7 @@ class Converger(MultiService):
     - we ensure we don't execute convergence for the same group concurrently.
     """
 
-    def __init__(self, log, dispatcher, num_buckets, partitioner_factory,
+    def __init__(self, log, dispatcher, num_buckets, partitioner,
                  build_timeout, interval,
                  limited_retry_iterations,
                  converge_all_groups=converge_all_groups):
@@ -754,14 +754,14 @@ class Converger(MultiService):
         self.log = log.bind(otter_service='converger')
         self._dispatcher = dispatcher
         self._buckets = range(num_buckets)
-        self.partitioner = partitioner_factory(
-            buckets=self._buckets, log=self.log,
-            got_buckets=self.buckets_acquired)
-        self.partitioner.setServiceParent(self)
+        self.partitioner = partitioner
         self.build_timeout = build_timeout
         self._converge_all_groups = converge_all_groups
         self.interval = interval
         self.limited_retry_iterations = limited_retry_iterations
+        ts = TimerService(interval, self._check_divergent_flags)
+        ts.clock = clock
+        ts.setServiceParent(self)
 
         # ephemeral mutable state
         self.currently_converging = Reference(pset())
@@ -788,19 +788,20 @@ class Converger(MultiService):
             lambda uid: with_log(eff, otter_service='converger',
                                  converger_run_id=uid))
 
-    def buckets_acquired(self, my_buckets):
+    def _check_divergent_flags(self):
         """
         Get dirty flags from zookeeper and run convergence with them.
 
         This is used as the partitioner callback.
         """
-        ceff = Effect(GetChildren(CONVERGENCE_DIRTY_DIR)).on(
-            partial(self._converge_all, my_buckets))
-        # Return deferred as 1-element tuple for testing only.
-        # Returning deferred would block otter from shutting down until
-        # it is fired which we don't need to do since convergence is itempotent
-        # and will be triggered in next start of otter
-        return (perform(self._dispatcher, self._with_conv_runid(ceff)), )
+        if self.partitioner.is_acquired():
+            ceff = Effect(GetChildren(CONVERGENCE_DIRTY_DIR)).on(
+                partial(self._converge_all, my_buckets))
+            # Return deferred as 1-element tuple for testing only.
+            # Returning deferred would block otter from shutting down until
+            # it is fired which we don't need to do since convergence is
+            # itempotent and will be triggered in next start of otter
+            return (perform(self._dispatcher, self._with_conv_runid(ceff)), )
 
     def divergent_changed(self, children):
         """
@@ -809,7 +810,7 @@ class Converger(MultiService):
         tenants associated with this service's buckets, a convergence will be
         triggered.
         """
-        if self.partitioner.get_current_state() != PartitionState.ACQUIRED:
+        if not self.partitioner.is_acquired():
             return
         my_buckets = self.partitioner.get_current_buckets()
         changed_buckets = set(
@@ -819,6 +820,19 @@ class Converger(MultiService):
             # the return value is ignored, but we return this for testing
             eff = self._converge_all(my_buckets, children)
             return perform(self._dispatcher, self._with_conv_runid(eff))
+
+    def health_check(self):
+        """
+        Check if converger is healthy and functioning
+
+        :return: Deferred that fires with tuple (Bool, `dict` of extra debug
+        info)
+        """
+        if not self.running:
+            return False, {'reason': 'Not running'}
+
+        if not self.partitioner.is_acquired():
+            return False, {"reason": "partitioner not acquired"}
 
 
 @attr.s

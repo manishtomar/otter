@@ -7,7 +7,7 @@ from twisted.application.service import MultiService
 from twisted.internet.defer import succeed
 
 
-class Partitioner(MultiService, object):
+class Partitioner(Service, object):
     """
     A Twisted service which uses a Kazoo :obj:`SetPartitioner` to allocate
     logical ``buckets`` between nodes.
@@ -21,31 +21,30 @@ class Partitioner(MultiService, object):
     local buckets have been determined.
     """
     def __init__(self, kz_client, interval, partitioner_path, buckets,
-                 time_boundary, log, got_buckets,
-                 clock=None):
+                 time_boundary, log, clock=None):
         """
-        :param log: a bound log
         :param kz_client: txKazoo client
         :param partitioner_path: ZooKeeper path, used for partitioning
         :param buckets: iterable of buckets to distribute between
             nodes. Ideally there should be at least as many elements as nodes
             taking part in this partitioner. This should be a sequence of str.
         :param time_boundary: time to wait for partitioning to stabilize.
-        :param got_buckets: Callable which will be called with a list of
-            buckets when buckets have been allocated to this node.
+        :param log: a bound log
         :param clock: clock to use for checking the buckets on an interval.
         """
         MultiService.__init__(self)
         self.kz_client = kz_client
         self.partitioner_path = partitioner_path
+        self.partitioner = None
         self.buckets = buckets
         self.log = log
-        self.got_buckets = got_buckets
         self.time_boundary = time_boundary
         ts = TimerService(interval, self.check_partition)
-        ts.setServiceParent(self)
         ts.clock = clock
-        self._old_buckets = []
+        ts.setServiceParent(self)
+
+    def is_acquired(self):
+        return self.partitioner and self.partitioner.acquired
 
     def get_current_state(self):
         """Return the current partitioner state."""
@@ -106,16 +105,6 @@ class Partitioner(MultiService, object):
                 otter_msg_type='partition-invalid-state')
             self.partitioner.finish()
             self.partitioner = self._new_partitioner()
-            return
-
-        buckets = self.get_current_buckets()
-        if buckets != self._old_buckets:
-            self.log.msg('Got buckets {buckets}', buckets=buckets,
-                         path=self.partitioner_path,
-                         old_buckets=self._old_buckets,
-                         otter_msg_type='partition-acquired')
-            self._old_buckets = buckets
-        return self.got_buckets(buckets)
 
     def health_check(self):
         """
@@ -124,16 +113,16 @@ class Partitioner(MultiService, object):
         :return: a Deferred that fires with (Bool, `dict` of extra info).
         """
         if not self.running:
-            return succeed((False, {'reason': 'Not running'}))
+            return False, {'reason': 'Not running'}
 
         if not self.partitioner.acquired:
             # TODO: Until there is check added for not being allocated for too
             # long, it is fine to indicate the service is not healthy when it
             # is allocating, since allocating should happen only on start-up or
             # during network issues.
-            return succeed((False, {'reason': 'Not acquired'}))
+            return False, {'reason': 'Not acquired'}
 
-        return succeed((True, {'buckets': self.get_current_buckets()}))
+        return True, {'buckets': self.get_current_buckets()}
 
     def get_current_buckets(self):
         """
