@@ -165,7 +165,8 @@ def main(reactor):
     store = CassScalingGroupCollection(cass_client, reactor, 1000)
 
     groups = yield get_groups(parsed, store, conf)
-    print(*set(g["tenantId"] for g in groups), sep="\n")
+    all_tenants = set(g["tenantId"] for g in groups)
+    print(*(all_tenants - set(conf["convergence-tenants"])), sep="\n")
 
     #yield trigger_convergence_groups(
     #    authenticator, conf["region"], groups, parsed.limit,
