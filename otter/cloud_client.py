@@ -1054,6 +1054,22 @@ def publish_to_cloudfeeds(event, log=None):
         json_response=False)
 
 
+def get_nova_entries(marker=None, direction="forward", limit=100):
+    """
+    Fetch list of Nova entries from CF
+    """
+    params = {"direction": direction, "limit": limit}
+    if marker is not None:
+        params["marker"] = marker
+    eff = service_request(
+        ServiceType.CLOUD_FEEDS, "GET", append_segments("nova", "events"),
+        headers={
+            "Accept": ["application/vnd.rackspace.atomsvc+json"]},
+        params=params, success_pred=has_code(200))
+    return eff.on(lambda (resp, body): body["feed"]["entry"])
+
+
+
 # ----- Cloud orchestration requests -----
 def list_stacks_all(parameters=None):
     """
