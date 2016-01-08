@@ -6,6 +6,7 @@ class Observer(MutiService, object):
 
     def __init__(self, dispatcher, kz_client, interval):
         super(Observer, self).__init__()
+        self.disp = dispatcher
         self.lock = self.kz_client.Lock(path)
         timer = TimerService(interval, self._check_feeds)
         timer.setServiceParent(self)
@@ -37,7 +38,9 @@ def find_changed_groups(entries):
 
 
 def find_changed_group(entry):
-    payload = entry["content"]["@text"]["payload"]
+    payload = get_in(["content", "@text", "payload"], entry)
+    if payload is None:
+        return None
     group_id = group_id_from_metadata(payload["metdata"])
     return (payload["tenant_id"], group_id) if group_id is not None else None
 
