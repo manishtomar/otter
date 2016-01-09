@@ -1066,7 +1066,7 @@ def get_nova_entries(marker=None, direction="forward", limit=100):
         headers={
             "Accept": ["application/vnd.rackspace.atomsvc+json"]},
         params=params, success_pred=has_code(200))
-    return eff.on(lambda (resp, body): body["feed"]["entry"])
+    return eff.on(lambda (resp, body): get_in(["feed", "entry"], resp))
 
 
 
