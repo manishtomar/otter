@@ -9,7 +9,7 @@ from datetime import datetime
 from functools import partial
 
 from effect import (
-    Constant, Effect, ParallelEffects, TypeDispatcher, sync_perform)
+    Effect, ParallelEffects, TypeDispatcher, sync_perform)
 from effect.testing import perform_sequence, resolve_effect
 
 from jsonschema import ValidationError
@@ -69,8 +69,10 @@ from otter.test.models.test_interface import (
 from otter.test.utils import (
     DummyException,
     LockMixin,
+    const,
     matches,
     mock_log,
+    noop,
     patch,
     test_dispatcher)
 from otter.util.config import set_config_data
@@ -3737,6 +3739,10 @@ class CassGroupServersCacheTests(SynchronousTestCase):
         self.cache = CassScalingGroupServersCache(
             self.tenant_id, self.group_id, self.clock)
         self.dt = datetime(2010, 10, 20, 10, 0, 0)
+        self.last_update = datetime(2000, 1, 5)
+        servers_part = assoc(self.params, "last_update", self.last_update)
+        self.curr_servers = [assoc(servers_part, "server_id", "ea"),
+                             assoc(servers_part, "server_id", "eb")]
 
     def _test_get_servers(self, only_as_active, query_result, exp_result):
         sequence = [
@@ -3813,7 +3819,59 @@ class CassGroupServersCacheTests(SynchronousTestCase):
               "server_as_active": True}],
             ([{"d": "e"}], self.dt))
 
-    def _test_insert_servers(self, eff, ts=2500000):
+    def test_insert_servers_empty(self):
+        """
+        `insert_servers` does nothing if called with empty servers list
+        """
+        self.assertIsNone(
+            perform_sequence(
+                [], self.cache.insert_servers(self.dt, [], False)),
+            None)
+
+    def _get_all_intent(self):
+        return cql_eff(
+            ('SELECT "tenantId", "groupId", last_update, server_id '
+             'FROM servers_cache WHERE "tenantId"=:tenantId AND '
+             '"groupId"=:groupId;'),
+            self.params).intent
+
+    def _delete_intent(self):
+        query = (
+            'BEGIN BATCH USING TIMESTAMP 2500000 '
+            'DELETE FROM servers_cache WHERE "tenantId"=:tenantId '
+            'AND "groupId"=:groupId AND last_update=:last_update0 '
+            'AND server_id=:server_id0; '
+            'DELETE FROM servers_cache WHERE "tenantId"=:tenantId '
+            'AND "groupId"=:groupId AND last_update=:last_update1 '
+            'AND server_id=:server_id1; APPLY BATCH;')
+        params = {"last_update0": self.last_update, "server_id0": "ea",
+                  "last_update1": self.last_update, "server_id1": "eb"}
+        return cql_eff(query, merge(self.params, params)).intent
+
+    def test_insert_servers_empty_clear_others(self):
+        """
+        `insert_servers` will get current list of servers and delete them
+        when called with empty list and clear_others=True
+        """
+        seq = [
+            (self._get_all_intent(), const(self.curr_servers)),
+            (self._delete_intent(), noop)
+        ]
+        eff = self.cache.insert_servers(self.dt, [], True)
+        self.assertIsNone(perform_sequence(seq, eff))
+
+    def test_insert_servers_empty_clear_others_empty_current(self):
+        """
+        If current list of servers is empty and `insert_servers` is called
+        with empty list and clear_others=True, it will get and do nothing
+        """
+        seq = [
+            (self._get_all_intent(), const([])),
+        ]
+        eff = self.cache.insert_servers(self.dt, [], True)
+        self.assertIsNone(perform_sequence(seq, eff))
+
+    def _insert_intent(self, ts=2500000):
         query = (
             'BEGIN BATCH USING TIMESTAMP {} '
             'INSERT INTO servers_cache ("tenantId", "groupId", last_update, '
@@ -3824,14 +3882,13 @@ class CassGroupServersCacheTests(SynchronousTestCase):
             'server_id, server_blob, server_as_active) '
             'VALUES(:tenantId, :groupId, :last_update, :server_id1, '
             ':server_blob1, :server_as_active1); APPLY BATCH;').format(ts)
-        self.params.update(
-            {"server_id0": "a", "server_blob0": '{"id": "a"}',
-             "server_as_active0": True,
-             "server_id1": "b", "server_blob1": '{"id": "b"}',
-             "server_as_active1": False,
-             "last_update": self.dt})
-        self.assertEqual(eff, cql_eff(query, self.params))
-        self.assertEqual(resolve_effect(eff, None), None)
+        params = {
+            "server_id0": "a", "server_blob0": '{"id": "a"}',
+            "server_as_active0": True,
+            "server_id1": "b", "server_blob1": '{"id": "b"}',
+            "server_as_active1": False,
+            "last_update": self.dt}
+        return cql_eff(query, merge(self.params, params)).intent
 
     def test_insert_servers(self):
         """
@@ -3839,38 +3896,36 @@ class CassGroupServersCacheTests(SynchronousTestCase):
         """
         eff = self.cache.insert_servers(
             self.dt, [{"id": "a", "_is_as_active": True}, {"id": "b"}], False)
-        self._test_insert_servers(eff)
+        self.assertIsNone(
+            perform_sequence([(self._insert_intent(), noop)], eff))
 
-    def test_insert_servers_delete(self):
+    def test_insert_servers_clear_others(self):
         """
-        `insert_servers` deletes existing caches before inserting
-        when clear_others=True
+        `insert_servers` first inserts new servers before deleting existing
+        when called with clear_others=True
         """
-        self.cache.delete_servers = lambda: Effect("delete")
+        seq = [
+            (self._get_all_intent(), const(self.curr_servers)),
+            (self._insert_intent(), noop),
+            (self._delete_intent(), noop)
+        ]
         eff = self.cache.insert_servers(
             self.dt, [{"id": "a", "_is_as_active": True}, {"id": "b"}], True)
-        self.assertEqual(eff.intent, "delete")
-        self.clock.advance(1)
-        eff = resolve_effect(eff, None)
-        self._test_insert_servers(eff, 3500000)
+        self.assertIsNone(perform_sequence(seq, eff))
 
-    def test_insert_empty(self):
+    def test_insert_servers_clear_others_current_empty(self):
         """
-        `insert_servers` does nothing if called with empty servers list
+        If current list of servers is empty and `insert_servers` is called
+        with clear_others=True, then it will get the empty list and insert new
+        servers. It will not issue query to delete
         """
-        self.assertEqual(
-            self.cache.insert_servers(self.dt, [], False),
-            Effect(Constant(None)))
-
-    def test_insert_empty_delete(self):
-        """
-        `insert_servers` deletes servers when clear_others=True and does
-        nothing if passed list is empty
-        """
-        self.cache.delete_servers = lambda: Effect("delete")
-        eff = self.cache.insert_servers(self.dt, [], True)
-        self.assertEqual(eff.intent, "delete")
-        self.assertIsNone(resolve_effect(eff, None))
+        seq = [
+            (self._get_all_intent(), const([])),
+            (self._insert_intent(), noop),
+        ]
+        eff = self.cache.insert_servers(
+            self.dt, [{"id": "a", "_is_as_active": True}, {"id": "b"}], True)
+        self.assertIsNone(perform_sequence(seq, eff))
 
     def test_delete_servers(self):
         """

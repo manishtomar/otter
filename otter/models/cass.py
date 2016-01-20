@@ -102,6 +102,32 @@ def cql_eff(query, params={}, consistency_level=DEFAULT_CONSISTENCY):
                         consistency_level=consistency_level))
 
 
+def batch_exec(query_fmt, items, columns, query_args, params, ts=None):
+    """
+    Form and execute batch queries
+
+    :param str query_fmt: Query format
+    :param list items: items to add. Each item is a dict
+    :param list columns: Column names. Each column must be in the query_fmt
+        as `column{i}` so that it can be replaced by same name key in item
+    :param dict query_args: Extra arguments to expand query_fmt with
+    :param dict params: Extra query params to add to execution
+    :param datetime ts: Batch query will be formed with this timestamp
+
+    :return: `Effect` of `CQLQueryExecute` intent
+    """
+    if len(items) == 0:
+        return Effect(Constant(None))
+
+    queries = []
+    col_params = {}
+    for i, item in enumerate(items):
+        for column in columns:
+            col_params["{}{}".format(column, i)] = item[column]
+        queries.append(query_fmt.format(i=i, **query_args))
+    return cql_eff(batch(queries, ts), merge(params, col_params))
+
+
 def serialize_json_data(data, ver):
     """
     Serialize json data to cassandra by adding a version and dumping it to a
@@ -1793,8 +1819,8 @@ class CassScalingGroupServersCache(object):
     def __init__(self, tenant_id, group_id, clock=None):
         self.tenantId = tenant_id
         self.groupId = group_id
-        self.table = "servers_cache"
         self.params = {"tenantId": self.tenantId, "groupId": self.groupId}
+        self.where = '"tenantId"=:tenantId AND "groupId"=:groupId'
         if clock is None:
             from twisted.internet import reactor
             self.clock = reactor
@@ -1806,10 +1832,9 @@ class CassScalingGroupServersCache(object):
         """
         See :method:`IScalingGroupServersCache.get_servers`
         """
-        query = ('SELECT server_blob, server_as_active, last_update FROM {cf} '
-                 'WHERE "tenantId"=:tenantId AND "groupId"=:groupId '
-                 'ORDER BY last_update DESC;')
-        rows = yield cql_eff(query.format(cf=self.table), self.params)
+        query = ('SELECT server_blob, server_as_active, last_update FROM '
+                 'servers_cache WHERE {} ORDER BY last_update DESC;')
+        rows = yield cql_eff(query.format(self.where), self.params)
         if len(rows) == 0:
             yield do_return(([], None))
         last_update = rows[0]['last_update']
@@ -1819,45 +1844,56 @@ class CassScalingGroupServersCache(object):
         rfunc = (
             compose(map(_dict), filter(lambda r: r['server_as_active']))
             if only_as_active else map(_dict))
-
         yield do_return((list(rfunc(rows)), last_update))
 
+    def _get_all(self):
+        query = ('SELECT "tenantId", "groupId", last_update, server_id '
+                 'FROM servers_cache WHERE {};')
+        return cql_eff(query.format(self.where), self.params)
+
+    def _delete_servers(self, servers):
+        query_fmt = ('DELETE FROM servers_cache WHERE {where} '
+                     'AND last_update=:last_update{i} '
+                     'AND server_id=:server_id{i};')
+        return batch_exec(
+            query_fmt, servers, ("last_update", "server_id"),
+            {"where": self.where}, self.params, get_client_ts(self.clock))
+
+    @do
     def insert_servers(self, last_update, servers, clear_others):
         """
         See :method:`IScalingGroupServersCache.insert_servers`
         """
-        if len(servers) == 0:
-            if clear_others:
-                return self.delete_servers()
-            else:
-                return Effect(Constant(None))
-        query = ('INSERT INTO {cf} ("tenantId", "groupId", last_update, '
-                 'server_id, server_blob, server_as_active) '
-                 'VALUES(:tenantId, :groupId, :last_update, :server_id{i}, '
-                 ':server_blob{i}, :server_as_active{i});')
-        params = merge(self.params, {"last_update": last_update})
-        queries = []
-        for i, server in enumerate(servers):
-            params['server_id{}'.format(i)] = server['id']
-            params['server_as_active{}'.format(i)] = server.pop(
-                '_is_as_active', False)
-            params['server_blob{}'.format(i)] = json.dumps(server)
-            queries.append(query.format(cf=self.table, i=i))
+        query = (
+            'INSERT INTO servers_cache ("tenantId", "groupId", '
+            'last_update, server_id, server_blob, server_as_active) '
+            'VALUES(:tenantId, :groupId, :last_update, :server_id{i}, '
+            ':server_blob{i}, :server_as_active{i});')
+        items = []
+        for server in servers:
+            item = server.copy()
+            item["server_id"] = server["id"]
+            item['server_as_active'] = server.pop('_is_as_active', False)
+            item['server_blob'] = json.dumps(server)
+            items.append(item)
+        insert_eff = batch_exec(
+            query, items, ("server_id", "server_as_active", "server_blob"),
+            {}, merge(self.params, {"last_update": last_update}),
+            get_client_ts(self.clock))
         if clear_others:
-            return self.delete_servers().on(
-                lambda _: cql_eff(
-                    batch(queries, get_client_ts(self.clock)), params))
+            curr = yield self._get_all()
+            yield insert_eff
+            yield self._delete_servers(curr)
         else:
-            return cql_eff(batch(queries, get_client_ts(self.clock)), params)
+            yield insert_eff
 
     def delete_servers(self):
         """
         See :method:`IScalingGroupServersCache.delete_servers`
         """
-        query = ('DELETE FROM {cf} USING TIMESTAMP :ts '
-                 'WHERE "tenantId"=:tenantId AND "groupId"=:groupId')
+        query = 'DELETE FROM servers_cache USING TIMESTAMP :ts WHERE {where}'
         return cql_eff(
-            query.format(cf=self.table),
+            query.format(where=self.where),
             merge(self.params, {"ts": get_client_ts(self.clock)}))
 
 
