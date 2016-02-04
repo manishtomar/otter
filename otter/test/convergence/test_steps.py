@@ -918,6 +918,54 @@ class RCv3CheckBulkAddTests(SynchronousTestCase):
         If adding results in retry multiple times, then it fails after
         a it has been tried some number of times
         """
+        # This little piggy is already on the load balancer
+        node_a_id = '825b8c72-9951-4aff-9cd8-fa3ca5551c90'
+        lb_a_id = '2b0e17b6-0429-4056-b86c-e670ad5de853'
+
+        # This little piggy is going to be added to this load balancer
+        node_b_id = "d6d3aa7c-dfa5-4e61-96ee-1d54ac1075d2"
+        lb_b_id = 'd95ae0c4-6ab8-4873-b82f-f8433840cff2'
+
+        seq = [
+            (service_request(
+                service_type=ServiceType.RACKCONNECT_V3,
+                method="POST",
+                url='load_balancer_pools/nodes',
+                data=[
+                    {'load_balancer_pool': {'id': lb_b_id},
+                     'cloud_server': {'id': node_b_id}}],
+                success_pred=has_code(201, 409)).intent,
+             lambda _: (StubResponse(409, {}), None)),
+            (log_intent('request-rcv3-bulk', None), noop)
+            (service_request(
+                service_type=ServiceType.RACKCONNECT_V3,
+                method="POST",
+                url='load_balancer_pools/nodes',
+                data=[
+                    {'load_balancer_pool': {'id': lb_b_id},
+                     'cloud_server': {'id': node_b_id}}],
+                success_pred=has_code(201, 409)).intent,
+             lambda _: (StubResponse(409, {}), None)),
+            (log_intent('request-rcv3-bulk', None), noop)
+        ]
+
+        body = {"errors":
+                ["Cloud Server {node_id} is already a member of Load "
+                 "Balancer Pool {lb_id}"
+                 .format(node_id=node_a_id, lb_id=lb_a_id)]}
+
+        eff = _rcv3_check_bulk_add(
+            [(lb_a_id, node_a_id),
+             (lb_b_id, node_b_id)],
+            0,
+            (StubResponse(409, {}), body))
+
+        self.assertEqual(
+            perform_sequence(seq, eff),
+            (StepResult.RETRY,
+             [ErrorReason.String(reason="must re-gather after adding to LB in "
+                                        "order to update the active cache")]))
+
 
     def test_node_already_a_member(self):
         """

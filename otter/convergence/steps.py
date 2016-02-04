@@ -397,8 +397,8 @@ RCV3_BULK_MAX_TRIES = 10
 
 
 @implementer(IStep)
-@attributes([Attribute('lb_node_pairs', instance_of=PSet)])
-@attributes([Attribute('tries', default_value=0)])
+@attributes([Attribute('lb_node_pairs', instance_of=PSet),
+             Attribute("tries", default_value=0)])
 class BulkAddToRCv3(object):
     """
     Some connections must be made between some combination of servers
@@ -459,6 +459,7 @@ def _rcv3_check_bulk_add(attempted_pairs, tries, result):
     if failure_reasons:
         return StepResult.FAILURE, failure_reasons
     elif to_retry:
+        print "to_retry", tries, to_retry
         if tries > RCV3_BULK_MAX_TRIES:
             return StepResult.FAILURE, [
                 ErrorReason.String("Exceeded maximum tries")]
