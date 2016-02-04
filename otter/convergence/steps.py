@@ -393,8 +393,12 @@ _RCV3_LB_DOESNT_EXIST_PATTERN = _rcv3_re(
     "Load Balancer Pool (?P<lb_id>{uuid}) does not exist")
 
 
+RCV3_BULK_MAX_TRIES = 10
+
+
 @implementer(IStep)
 @attributes([Attribute('lb_node_pairs', instance_of=PSet)])
+@attributes([Attribute('tries', default_value=0)])
 class BulkAddToRCv3(object):
     """
     Some connections must be made between some combination of servers
@@ -421,10 +425,10 @@ class BulkAddToRCv3(object):
         balancers.
         """
         eff = self._bare_effect()
-        return eff.on(partial(_rcv3_check_bulk_add, self.lb_node_pairs))
+        return eff.on(partial(_rcv3_check_bulk_add, self.lb_node_pairs, self.tries))
 
 
-def _rcv3_check_bulk_add(attempted_pairs, result):
+def _rcv3_check_bulk_add(attempted_pairs, tries, result):
     """
     Checks if the RCv3 bulk add command was successful.
     """
@@ -455,7 +459,10 @@ def _rcv3_check_bulk_add(attempted_pairs, result):
     if failure_reasons:
         return StepResult.FAILURE, failure_reasons
     elif to_retry:
-        next_step = BulkAddToRCv3(lb_node_pairs=to_retry)
+        if tries > RCV3_BULK_MAX_TRIES:
+            return StepResult.FAILURE, [
+                ErrorReason.String("Exceeded maximum tries")]
+        next_step = BulkAddToRCv3(lb_node_pairs=to_retry, tries=tries + 1)
         return next_step.as_effect()
     else:
         # It's unclear when this condition is reached. Should we really be
@@ -465,6 +472,7 @@ def _rcv3_check_bulk_add(attempted_pairs, result):
 
 @implementer(IStep)
 @attributes([Attribute('lb_node_pairs', instance_of=PSet)])
+@attributes([Attribute('tries', default_value=0)])
 class BulkRemoveFromRCv3(object):
     """
     Some connections must be removed between some combination of nodes
@@ -491,10 +499,10 @@ class BulkRemoveFromRCv3(object):
         balancers.
         """
         eff = self._bare_effect()
-        return eff.on(partial(_rcv3_check_bulk_delete, self.lb_node_pairs))
+        return eff.on(partial(_rcv3_check_bulk_delete, self.lb_node_pairs, self.tries))
 
 
-def _rcv3_check_bulk_delete(attempted_pairs, result):
+def _rcv3_check_bulk_delete(attempted_pairs, tries, result):
     """Checks if the RCv3 bulk deletion command was successful.
 
     The request is considered successful if the response code indicated
@@ -533,7 +541,10 @@ def _rcv3_check_bulk_delete(attempted_pairs, result):
                              if lb_id != bad_lb_id])
 
     if to_retry:
-        next_step = BulkRemoveFromRCv3(lb_node_pairs=to_retry)
+        if tries > RCV3_BULK_MAX_TRIES:
+            return StepResult.FAILURE, [
+                ErrorReason.String("Exceeded maximum tries")]
+        next_step = BulkRemoveFromRCv3(lb_node_pairs=to_retry, tries=tries + 1)
         return next_step.as_effect()
     else:
         return StepResult.SUCCESS, []

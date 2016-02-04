@@ -904,6 +904,7 @@ class RCv3CheckBulkAddTests(SynchronousTestCase):
         eff = _rcv3_check_bulk_add(
             [(lb_a_id, node_a_id),
              (lb_b_id, node_b_id)],
+            0,
             (StubResponse(409, {}), body))
 
         self.assertEqual(
@@ -911,6 +912,12 @@ class RCv3CheckBulkAddTests(SynchronousTestCase):
             (StepResult.RETRY,
              [ErrorReason.String(reason="must re-gather after adding to LB in "
                                         "order to update the active cache")]))
+
+    def test_limits_retry(self):
+        """
+        If adding results in retry multiple times, then it fails after
+        a it has been tried some number of times
+        """
 
     def test_node_already_a_member(self):
         """
