@@ -284,8 +284,10 @@ def collect_metrics(reactor, config, log, client=None, authenticator=None,
     if _print:
         group_metrics.sort(key=lambda g: abs(g.desired - g.actual),
                            reverse=True)
-        print('groups sorted as per divergence')
-        print('\n'.join(map(str, group_metrics)))
+        print('conv groups sorted as per divergence')
+        cm = [m for m in group_metrics
+              if tenant_is_enabled(m.tenant_id, lambda k: get_in([k], config))]
+        print('\n'.join(map(str, cm)))
 
     # Disconnect only if we created the client
     if not client:
