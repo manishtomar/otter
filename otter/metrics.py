@@ -22,6 +22,7 @@ from silverberg.cluster import RoundRobinCassandraCluster
 from toolz.curried import filter, get_in
 from toolz.dicttoolz import keyfilter, merge
 from toolz.functoolz import compose, flip
+from toolz.itertoolz import groupby
 
 from twisted.application.internet import TimerService
 from twisted.application.service import Service
@@ -41,8 +42,7 @@ from otter.convergence.model import (
 from otter.effect_dispatcher import get_legacy_dispatcher, get_log_dispatcher
 from otter.log import log as otter_log
 from otter.models.cass import CassScalingGroupCollection
-from otter.models.intents import GetAllGroups, get_model_dispatcher
-from otter.util.config import config_value
+from otter.models.intents import GetAllValidGroups, get_model_dispatcher
 from otter.util.fp import partition_bool
 
 
@@ -165,7 +165,7 @@ def calc_total(group_metrics):
 
 
 @do
-def add_to_cloud_metrics(ttl, region, group_metrics, no_tenants, config,
+def add_to_cloud_metrics(ttl, region, group_metrics, num_tenants, config,
                          log=None, _print=False):
     """
     Add total number of desired, actual and pending servers of a region
@@ -173,7 +173,7 @@ def add_to_cloud_metrics(ttl, region, group_metrics, no_tenants, config,
 
     :param str region: which region's metric is collected
     :param group_metrics: List of :obj:`GroupMetric`
-    :param int no_tenants: total number of tenants
+    :param int num_tenants: total number of tenants
     :param dict config: Config json dict containing convergence tenants info
     :param log: Optional logger
     :param bool _print: Should it print activity on stdout? Useful when running
@@ -195,7 +195,7 @@ def add_to_cloud_metrics(ttl, region, group_metrics, no_tenants, config,
             total.desired, total.actual, total.pending))
 
     metrics = [('desired', total.desired), ('actual', total.actual),
-               ('pending', total.pending), ('tenants', no_tenants),
+               ('pending', total.pending), ('tenants', num_tenants),
                ('groups', len(group_metrics))]
     for tenant_id, metric in sorted(tenanted_metrics.items()):
         metrics.append(("{}.desired".format(tenant_id), metric.desired))
@@ -265,8 +265,11 @@ def collect_metrics(reactor, config, log, client=None, authenticator=None,
     dispatcher = get_dispatcher(reactor, authenticator, log,
                                 get_service_configs(config), store)
 
-    # calculate metrics
-    tenanted_groups = yield perform(dispatcher, Effect(GetAllGroups()))
+    # calculate metrics on launch_server groups
+    groups = yield perform(dispatcher, Effect(GetAllValidGroups()))
+    groups = [g for g in groups
+              if json.loads(g["launch_config"]).get("type") == "launch_server"]
+    tenanted_groups = groupby(lambda g: g["tenantId"], groups)
     group_metrics = yield get_all_metrics(
         dispatcher, tenanted_groups, log, _print=_print)
 
