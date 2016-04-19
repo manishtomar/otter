@@ -91,6 +91,17 @@ def _server(group, state):
          'metadata': {'rax:auto_scaling_group_id': group}})
 
 
+class PrintTests(SynchronousTestCase):
+
+    def test_1(self):
+        gms = [GroupMetrics('t1', 'g1', desired=3, actual=2, pending=1),
+               GroupMetrics('t1', 'g2', desired=4, actual=1, pending=0),
+               GroupMetrics('t2', 'g4', desired=2, actual=1, pending=1)]
+        conf = {"non-convergence-tenants": ['t2']}
+        from otter.metrics import print_divergent_groups
+        print_divergent_groups(gms, conf)
+
+
 class GetAllMetricsEffectsTests(SynchronousTestCase):
     """Tests for :func:`get_all_metrics_effects`"""
 

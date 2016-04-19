@@ -287,16 +287,23 @@ def collect_metrics(reactor, config, log, client=None, authenticator=None,
         if _print:
             print('added to cloud metrics')
     if _print:
-        group_metrics.sort(key=lambda g: abs(g.desired - g.actual),
-                           reverse=True)
-        print('groups sorted as per divergence')
-        print('\n'.join(map(str, group_metrics)))
+        print_divergent_groups(group_metrics, config)
 
     # Disconnect only if we created the client
     if not client:
         yield _client.disconnect()
 
     defer.returnValue(group_metrics)
+
+
+def print_divergent_groups(gms, conf):
+
+    def to_print(g):
+        return (tenant_is_enabled(g.tenant_id, conf.get) and
+                g.desired != g.actual + g.pending)
+
+    print('divergent groups')
+    print('\n'.join(map(str, filter(to_print, gms))))
 
 
 class Options(usage.Options):
