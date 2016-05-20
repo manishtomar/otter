@@ -183,11 +183,19 @@ class SelfHealTests(SynchronousTestCase):
         """
         self.assertEqual(
             self.successResultOf(self.s.health_check()),
-            (True, {"has_lock": True}))
+            (True, {"has_lock": True, "scheduled_calls": 0}))
         self.ila.return_value = succeed(False)
         self.assertEqual(
             self.successResultOf(self.s.health_check()),
-            (True, {"has_lock": False}))
+            (True, {"has_lock": False, "scheduled_calls": 0}))
+        # check scheduled_calls
+        groups = [{"tenantId": "t{}".format(i), "groupId": "g{}".format(i)}
+                  for i in range(5)]
+        self.s.disp = SequenceDispatcher([(("ggtc", "cf"), const(groups))])
+        self.s.startService()
+        self.assertEqual(
+            self.successResultOf(self.s.health_check()),
+            (True, {"has_lock": False, "scheduled_calls": 5}))
 
     def test_stop_service(self):
         """

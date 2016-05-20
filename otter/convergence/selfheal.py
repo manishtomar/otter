@@ -72,7 +72,10 @@ class SelfHeal(MultiService, object):
         Return about whether this object has lock
         """
         d = is_lock_acquired(self.disp, self.lock)
-        return d.addCallback(lambda b: (True, {"has_lock": b}))
+        calls = self.clock.getDelayedCalls()
+        return d.addCallback(
+            lambda b: (bool(calls), {"has_lock": b,
+                                     "scheduled_calls": len(calls) - 1}))
 
     def _perform(self):
         d = perform(self.disp, get_groups_to_converge(self.config_func))
