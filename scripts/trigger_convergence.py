@@ -195,8 +195,12 @@ def groups_steps(groups, reactor, store, cass_client, authenticator, conf):
     Return [(group, (steps, delta))] list
     """
     eff = parallel(map(group_steps, groups))
+    from twisted.python import log as tlog
+    from otter.log import log as otter_log
+    from otter.log.setup import observer_factory
+    tlog.startLoggingWithObserver(observer_factory())
     disp = get_full_dispatcher(
-        reactor, authenticator, mock_log(), get_service_configs(conf),
+        reactor, authenticator, otter_log, get_service_configs(conf),
         "kzclient", store, "supervisor", cass_client)
     d = perform(disp, eff)
     return d.addCallback(lambda steps: zip(groups, steps))
