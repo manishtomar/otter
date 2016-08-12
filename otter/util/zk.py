@@ -237,11 +237,7 @@ class PollingLock(object):
                 yield Effect(CreateNode(self.path))
             except NodeExistsError:
                 pass
-            prefix = yield Effect(Func(uuid.uuid4))
-            create_intent = CreateNode(
-                "{}/{}".format(self.path, prefix),
-                value=self.identifier, ephemeral=True, sequence=True)
-            self._node = yield Effect(create_intent)
+            self._node = yield self._create_node(prefix)
             acquired = yield self._acquire_loop(blocking, timeout)
             if not acquired:
                 yield self.release_eff()
@@ -249,6 +245,24 @@ class PollingLock(object):
         except Exception as e:
             yield self.release_eff()
             raise e
+
+    def _create_node(self, prefix):
+
+        @do
+        def check_and_create():
+            children = yield Effect(GetChildren(self.path))
+            for child in children:
+                if child.startswith(prefix):
+                    yield do_return(child)
+            else:
+                create_intent = CreateNode(
+                    "{}/{}".format(self.path, prefix),
+                    value=self.identifier, ephemeral=True, sequence=True)
+                node = yield Effect(create_intent)
+                yield do_return(node)
+
+        return retry_effect(
+            check_and_create, retry_times(5), exponential_backoff_interval(2))
 
     @do
     def _acquire_loop(self, blocking, timeout):
