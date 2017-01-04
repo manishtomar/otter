@@ -101,7 +101,11 @@ def run(args):
         help='Keys and regex values to negatively match against in the form '
              'of "key:valregex" - succeeds if the key doesn\'t exist, or if '
              'the key exists but the regex doesn\'t match.')
-    parser.add_argument('--directory', dest='directory', default='.',
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "-f", "--file", dest="file", default="current",
+        help="The one file containing logs. Defaults to \"current\"")
+    group.add_argument('-d', '--directory', dest='directory', default='.',
                         help="The path to the directory containing logs.")
 
     options = parser.parse_args(args)
@@ -118,7 +122,7 @@ def run(args):
             all([k not in event or regexp.search(repr(event[k])) is None
                  for k, regexp in nkeyvals]))
 
-    logfiles = get_all_log_files(options.directory)
+    logfiles = [options.file] if options.file else get_all_log_files(options.directory)
     prev = None
     for filename in logfiles:
         prev = process_file(filename, filter_callable, prev)
